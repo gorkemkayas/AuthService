@@ -1,4 +1,12 @@
+using AuthService.Infrastructure.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
+
+
+// Add DbContext configurations
+builder.Services.ConfigureDbConfigurationOptions(builder.Configuration);
+builder.Services.AddAuthDbContext();
+
 
 // Add services to the container.
 
