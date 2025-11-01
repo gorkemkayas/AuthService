@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace AuthService.Infrastructure.Entities
+namespace AuthService.Infrastructure.Persistance.Entities
 {
     public class ApplicationUser : IdentityUser, IBaseEntity
     {

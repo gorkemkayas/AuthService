@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace AuthService.Infrastructure.Entities
+namespace AuthService.Infrastructure.Persistance.Entities
 {
     public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
     {

@@ -1,5 +1,5 @@
-﻿using AuthService.Infrastructure.Configuration;
-using AuthService.Infrastructure.Persistance;
+﻿using AuthService.Infrastructure.Persistance.Configuration;
+using AuthService.Infrastructure.Persistance.DbContexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

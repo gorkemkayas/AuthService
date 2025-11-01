@@ -1,8 +1,9 @@
-﻿using AuthService.Infrastructure.Entities;
+﻿
+using AuthService.Infrastructure.Persistance.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace AuthService.Infrastructure.Persistance
+namespace AuthService.Infrastructure.Persistance.DbContexts
 {
     public class AuthDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, string>
     {

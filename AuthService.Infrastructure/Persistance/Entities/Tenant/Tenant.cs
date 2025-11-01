@@ -1,4 +1,4 @@
-﻿namespace AuthService.Infrastructure.Entities
+﻿namespace AuthService.Infrastructure.Persistance.Entities
 {
     public class Tenant
     {

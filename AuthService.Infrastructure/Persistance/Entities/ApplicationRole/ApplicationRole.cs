@@ -1,7 +1,7 @@
 ﻿using AuthService.Infrastructure.Common;
 using Microsoft.AspNetCore.Identity;
 
-namespace AuthService.Infrastructure.Entities
+namespace AuthService.Infrastructure.Persistance.Entities
 {
     public class ApplicationRole : IdentityRole,IBaseEntity
     {

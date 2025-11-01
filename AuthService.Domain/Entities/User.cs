@@ -8,5 +8,7 @@ public class User : BaseEntity<string>
     public string Surname { get; set; } = null!;
     public string FullName => $"{Name} {Surname}";
     public string Email { get; set; } = null!;
-    public string TenantId { get; set; } = null!;
+    public int TenantId { get; set; }
+    public string PasswordSalt { get; set; } = null!;
+    public string PasswordHash { get; set; } = null!;
 }

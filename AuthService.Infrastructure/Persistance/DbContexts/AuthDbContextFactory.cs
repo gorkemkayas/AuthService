@@ -1,9 +1,9 @@
-﻿using AuthService.Infrastructure.Configuration;
+﻿using AuthService.Infrastructure.Persistance.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 
-namespace AuthService.Infrastructure.Persistance;
+namespace AuthService.Infrastructure.Persistance.DbContexts;
 public class AuthDbContextFactory : IDesignTimeDbContextFactory<AuthDbContext>
 {
     public AuthDbContext CreateDbContext(string[] args)

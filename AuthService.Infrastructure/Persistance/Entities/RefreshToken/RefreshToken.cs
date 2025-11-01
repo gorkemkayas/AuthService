@@ -1,6 +1,6 @@
 ﻿using AuthService.Infrastructure.Common;
 
-namespace AuthService.Infrastructure.Entities
+namespace AuthService.Infrastructure.Persistance.Entities
 {
     public class RefreshToken : IBaseEntity
     {

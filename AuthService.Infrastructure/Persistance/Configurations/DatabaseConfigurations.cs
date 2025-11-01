@@ -1,4 +1,4 @@
-﻿namespace AuthService.Infrastructure.Configuration
+﻿namespace AuthService.Infrastructure.Persistance.Configuration
 {
     public class DatabaseConfigurations
     {

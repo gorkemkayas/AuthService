@@ -1,4 +1,5 @@
 using AuthService.Infrastructure.Extensions;
+using AuthService.Infrastructure.Mapping;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,6 +7,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Add DbContext configurations
 builder.Services.ConfigureDbConfigurationOptions(builder.Configuration);
 builder.Services.AddAuthDbContext();
+
+// Add repository registrations
+builder.Services.AddRepositoryRegistrations();
+
+// Add AutoMapper configurations
+builder.Services.AddAutoMapperConfigurations();
 
 
 // Add services to the container.
