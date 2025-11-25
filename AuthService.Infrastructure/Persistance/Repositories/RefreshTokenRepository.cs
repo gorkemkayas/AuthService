@@ -1,10 +1,10 @@
 ﻿using AuthService.Application.Interfaces.Repositories;
-using AuthService.Infrastructure.Persistance.Entities;
+using AuthService.Infrastructure.Mapping;
+using AuthService.Infrastructure.Persistance.DbContexts;
 
 namespace AuthService.Infrastructure.Persistance.Repositories
 {
-    public class RefreshTokenRepository(GenericRepository<RefreshToken> genericRepository) : IRefreshTokenRepository
+    public class RefreshTokenRepository(AuthDbContext context, IEntityMapper mapper) : GenericRepository<AuthService.Domain.Entities.RefreshToken, AuthService.Infrastructure.Persistance.Entities.RefreshToken, int>(context, mapper), IRefreshTokenRepository
     {
-        private readonly GenericRepository<RefreshToken> _genericRepository = genericRepository;
     }
 }

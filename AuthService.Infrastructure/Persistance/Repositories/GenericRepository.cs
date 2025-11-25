@@ -1,74 +1,138 @@
 ﻿using AuthService.Application.Interfaces.Repositories;
-using AuthService.Application.Interfaces.Specifications;
+using AuthService.Infrastructure.Mapping;
 using AuthService.Infrastructure.Persistance.DbContexts;
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Expressions;
 
 namespace AuthService.Infrastructure.Persistance.Repositories
 {
-    public class GenericRepository<T> : IGenericRepository<T> where T : class
+    public class GenericRepository<TDomain, TData, TKey> : IGenericRepository<TDomain,TData,TKey> where TDomain : class where TData : class
     {
         private readonly AuthDbContext _context;
-        private readonly DbSet<T> _dbSet;
+        private readonly DbSet<TData> _dbSet;
+        private readonly IEntityMapper _mapper;
 
-        public GenericRepository(AuthDbContext context)
+        public GenericRepository(AuthDbContext context, IEntityMapper mapper)
         {
             _context = context;
-            _dbSet = _context.Set<T>();
+            _dbSet = _context.Set<TData>();
+            _mapper = mapper;
         }
-        public async Task AddAsync(T entity, CancellationToken cancellationToken = default)
-            => await _dbSet.AddAsync(entity, cancellationToken);
-        public async Task AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default)
-            => await _dbSet.AddRangeAsync(entities, cancellationToken);
-        public async Task<int> CountAsync(ISpecification<T> specification, CancellationToken cancellationToken = default)
+
+        public async Task AddAsync(TDomain entity, CancellationToken cancellationToken = default)
         {
-            var query = ApplySpecification(specification);
-            return await query.CountAsync(cancellationToken);
+            var dataEntity = _mapper.MapToData<TDomain, TData>(entity);
+            await _dbSet.AddAsync(dataEntity, cancellationToken);
         }
-        public async Task<bool> ExistsAsync(ISpecification<T> specification, CancellationToken cancellationToken = default)
+
+        public async Task AddRangeAsync(IEnumerable<TDomain> entities, CancellationToken cancellationToken = default)
         {
-            var query = ApplySpecification(specification);
-            return await query.AnyAsync(cancellationToken);
+            var dataEntities = entities.Select(e => _mapper.MapToData<TDomain, TData>(e));
+            await _dbSet.AddRangeAsync(dataEntities, cancellationToken);
         }
-        public async Task<IEnumerable<T>> FindAsync(ISpecification<T> specification, CancellationToken cancellationToken = default)
-        {
-            var query = ApplySpecification(specification);
-            return await query.ToListAsync(cancellationToken);
-        }
-        public async Task<IEnumerable<T>> GetAllAsync(ISpecification<T>? specification = null, CancellationToken cancellationToken = default)
-        {
-            var query = specification != null ? ApplySpecification(specification) : _dbSet.AsQueryable();
-            return await query.ToListAsync(cancellationToken);
-        }
-        public Task<T?> GetByIdAsync(object id, CancellationToken cancellationToken = default)
-            => _dbSet.FindAsync(new[] { id }, cancellationToken).AsTask();
-        public void Remove(T entity) => _dbSet.Remove(entity);
-        public void RemoveRange(IEnumerable<T> entities) => _dbSet.RemoveRange(entities);
-        public void Update(T entity) => _dbSet.Update(entity);
-        private IQueryable<T> ApplySpecification(ISpecification<T> specification)
+
+        public Task<bool> ExistsAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default)
         {
             var query = _dbSet.AsQueryable();
-
-            if (specification.Criteria != null)
-                query = query.Where(specification.Criteria);
-
-            foreach (var include in specification.Includes)
-                query = query.Include(include);
-
-            if (specification.OrderBy != null)
-                query = query.OrderBy(specification.OrderBy);
-
-            if (specification.OrderByDescending != null)
-                query = query.OrderByDescending(specification.OrderByDescending);
-
-            if (specification.Skip.HasValue)
-                query = query.Skip(specification.Skip.Value);
-
-            if (specification.Take.HasValue)
-                query = query.Take(specification.Take.Value);
-
-            return query;
+            if (tenantId.HasValue)
+            {
+                query = query.Where(e => EF.Property<int>(e, "TenantId") == tenantId.Value);
+            }
+            if (onlyActive.HasValue && onlyActive.Value)
+            {
+                query = query.Where(e => EF.Property<bool>(e, "IsActive") == true);
+            }
+            return query.AnyAsync(cancellationToken);
         }
+
+        public async Task<IEnumerable<TDomain>?> FindAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default)
+        {
+            var query = _dbSet.AsQueryable();
+            if (tenantId.HasValue)
+            {
+                query = query.Where(e => EF.Property<int>(e, "TenantId") == tenantId.Value);
+            }
+            if (onlyActive.HasValue && onlyActive.Value)
+            {
+                query = query.Where(e => EF.Property<bool>(e, "IsActive") == true);
+            }
+            var dataEntities = await query.ToListAsync(cancellationToken);
+            var datas = dataEntities.Select(e => _mapper.MapToDomain<TDomain, TData>(e));
+            return datas;
+        }
+
+        public async Task<IEnumerable<TDomain>?> GetAllAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default)
+        {
+            var query = _dbSet.AsQueryable();
+            if (tenantId.HasValue)
+            {
+                query = query.Where(e => EF.Property<int>(e, "TenantId") == tenantId.Value);
+            }
+            if (onlyActive.HasValue && onlyActive.Value)
+            {
+                query = query.Where(e => EF.Property<bool>(e, "IsActive") == true);
+            }
+            var dataEntities = await query.ToListAsync(cancellationToken);
+            var datas = dataEntities.Select(e => _mapper.MapToDomain<TDomain, TData>(e));
+            return datas;
+
+        }
+
+        public async Task<TDomain?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default)
+        {
+            var entity = await _dbSet.FindAsync(new[] { id }, cancellationToken);
+            if (entity == null)
+                return null;
+            return _mapper.MapToDomain<TDomain, TData>(entity);
+        }
+
+        public void Remove(TDomain entity)
+        {
+            var mappedEntity = _mapper.MapToData<TDomain, TData>(entity);
+            var trackedEntity = _context.ChangeTracker.Entries<TData>().FirstOrDefault(e => e.Entity.Equals(mappedEntity));
+
+            if (trackedEntity != null)
+            {
+                trackedEntity.State = EntityState.Deleted;
+            }
+
+            _dbSet.Remove(mappedEntity);
+        }
+
+        public void RemoveRange(IEnumerable<TDomain> entities)
+        {
+            foreach (var entity in entities)
+            {
+                var mappedEntity = _mapper.MapToData<TDomain, TData>(entity);
+
+                // ChangeTracker'da aynı Id’ye sahip entity var mı kontrol et
+                var trackedEntity = _context.ChangeTracker
+                                            .Entries<TData>()
+                                            .FirstOrDefault(e => e.Entity.Equals(mappedEntity));
+
+                if (trackedEntity != null)
+                {
+                    trackedEntity.State = EntityState.Deleted; // Takip ediliyorsa sadece silme state'i ata
+                }
+                else
+                {
+                    _dbSet.Remove(mappedEntity); // Takip edilmiyorsa DbSet üzerinden işaretle
+                }
+            }
+        }
+
+        public void Update(TDomain entity)
+        {
+            var mappedEntity = _mapper.MapToData<TDomain, TData>(entity);
+            var trackedEntity = _context.ChangeTracker.Entries<TData>().FirstOrDefault(e => e.Entity.Equals(mappedEntity));
+            if (trackedEntity != null)
+            {
+                trackedEntity.CurrentValues.SetValues(mappedEntity);
+            }
+
+            _dbSet.Update(mappedEntity);
+
+        }
+
     }
 
 }

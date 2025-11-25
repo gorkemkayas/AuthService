@@ -1,20 +1,18 @@
-﻿using AuthService.Application.Interfaces.Specifications;
-using System.Linq.Expressions;
-
-namespace AuthService.Application.Interfaces.Repositories
+﻿namespace AuthService.Application.Interfaces.Repositories
 {
-    public interface IGenericRepository<T> where T : class
+    public interface IGenericRepository<TDomain, TData, TKey> where TDomain : class where TData : class
     {
-        Task<T?> GetByIdAsync(object id, CancellationToken cancellationToken = default);
-        Task<IEnumerable<T>> GetAllAsync(ISpecification<T>? specification, CancellationToken cancellationToken = default);
-        Task<IEnumerable<T>> FindAsync(ISpecification<T> specification, CancellationToken cancellationToken = default);
-        Task AddAsync(T entity, CancellationToken cancellationToken = default);
-        Task AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default);
-        void Update(T entity);
-        void Remove(T entity);
-        void RemoveRange(IEnumerable<T> entities);
-        Task<int> CountAsync(ISpecification<T> specification, CancellationToken cancellationToken = default);
-        Task<bool> ExistsAsync(ISpecification<T> specification, CancellationToken cancellationToken = default);
+        Task<TDomain?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default);
 
+        // Domain-friendly filtre parametreleri ile listeleme
+        Task<IEnumerable<TDomain>?> GetAllAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default);
+        Task<IEnumerable<TDomain>?> FindAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default);
+        Task AddAsync(TDomain entity, CancellationToken cancellationToken = default);
+        Task AddRangeAsync(IEnumerable<TDomain> entities, CancellationToken cancellationToken = default);
+        void Update(TDomain entity);
+        void Remove(TDomain entity);
+        void RemoveRange(IEnumerable<TDomain> entities);
+        Task<bool> ExistsAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default);
     }
+
 }

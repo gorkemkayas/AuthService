@@ -1,5 +1,6 @@
 ﻿using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Repositories;
+using AuthService.Infrastructure.Mapping;
 using AuthService.Infrastructure.Persistance.DbContexts;
 using AuthService.Infrastructure.Persistance.Repositories;
 using AuthService.Infrastructure.Persistance.UnitOfWork;
@@ -11,7 +12,8 @@ namespace AuthService.Infrastructure.Extensions
     {
         public static IServiceCollection AddRepositoryRegistrations(this IServiceCollection services)
         {
-            services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+            services.AddScoped<IEntityMapper, EntityMapper>();
+            services.AddScoped(typeof(IGenericRepository<,,>), typeof(GenericRepository<,,>));
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<ITenantRepository, TenantRepository>();
             services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();

@@ -1,10 +1,10 @@
 ﻿using AuthService.Application.Interfaces.Repositories;
-using AuthService.Infrastructure.Persistance.Entities;
+using AuthService.Infrastructure.Mapping;
+using AuthService.Infrastructure.Persistance.DbContexts;
 
 namespace AuthService.Infrastructure.Persistance.Repositories
 {
-    public class TenantRepository(GenericRepository<Tenant> genericRepository) : ITenantRepository
+    public class TenantRepository(AuthDbContext context, IEntityMapper mapper) : GenericRepository<AuthService.Domain.Entities.Tenant, AuthService.Infrastructure.Persistance.Entities.Tenant, int>(context,mapper), ITenantRepository
     {
-        private readonly GenericRepository<Tenant> _genericRepository = genericRepository;
     }
 }

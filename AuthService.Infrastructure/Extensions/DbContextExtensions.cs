@@ -1,5 +1,7 @@
 ﻿using AuthService.Infrastructure.Persistance.Configuration;
 using AuthService.Infrastructure.Persistance.DbContexts;
+using AuthService.Infrastructure.Persistance.Entities;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +23,11 @@ namespace AuthService.Infrastructure.Extensions
                 var dbConfig = serviceProvider.GetRequiredService<IOptions<DatabaseConfigurations>>().Value;
                 opt.UseNpgsql(dbConfig.ConnectionString);
             });
+
+            services.AddIdentity<ApplicationUser, ApplicationRole>()
+                .AddEntityFrameworkStores<AuthDbContext>()
+                .AddDefaultTokenProviders();
+
             return services;
         }
     }
