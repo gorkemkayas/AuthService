@@ -12,6 +12,9 @@
         public DateTime? UpdatedAt { get; set; }
         public bool IsDeleted { get; set; }
 
+        public string Email { get; set; } = null!; // Emails will be as 'name@kayas.com'
+        public string HashedPassword { get; set; } = "0000000000";
+
         // Navigation Properties
         public ICollection<ApplicationUser> ApplicationUsers { get; set; }
     }
