@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthService.Infrastructure.Persistance.Repositories
 {
-    public class GenericRepository<TDomain, TData, TKey> : IGenericRepository<TDomain,TData,TKey> where TDomain : class where TData : class
+    public class GenericRepository<TDomain, TData, TKey> : IGenericRepository<TDomain, TData, TKey> where TDomain : class where TData : class
     {
-        private readonly AuthDbContext _context;
+        protected readonly AuthDbContext _context;
         private readonly DbSet<TData> _dbSet;
-        private readonly IEntityMapper _mapper;
+        protected readonly IEntityMapper _mapper;
 
         public GenericRepository(AuthDbContext context, IEntityMapper mapper)
         {
@@ -30,12 +30,12 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             await _dbSet.AddRangeAsync(dataEntities, cancellationToken);
         }
 
-        public Task<bool> ExistsAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default)
+        public Task<bool> ExistsAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default)
         {
             var query = _dbSet.AsQueryable();
-            if (tenantId.HasValue)
+            if (id != null)
             {
-                query = query.Where(e => EF.Property<int>(e, "TenantId") == tenantId.Value);
+                query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
             }
             if (onlyActive.HasValue && onlyActive.Value)
             {
@@ -44,12 +44,12 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             return query.AnyAsync(cancellationToken);
         }
 
-        public async Task<IEnumerable<TDomain>?> FindAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<TDomain>?> FindAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default)
         {
             var query = _dbSet.AsQueryable();
-            if (tenantId.HasValue)
+            if (id != null)
             {
-                query = query.Where(e => EF.Property<int>(e, "TenantId") == tenantId.Value);
+                query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
             }
             if (onlyActive.HasValue && onlyActive.Value)
             {
@@ -60,12 +60,12 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             return datas;
         }
 
-        public async Task<IEnumerable<TDomain>?> GetAllAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<TDomain>?> GetAllAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default)
         {
-            var query = _dbSet.AsQueryable();
-            if (tenantId.HasValue)
+            var query = _dbSet.AsNoTracking().AsQueryable();
+            if (id != null)
             {
-                query = query.Where(e => EF.Property<int>(e, "TenantId") == tenantId.Value);
+                query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
             }
             if (onlyActive.HasValue && onlyActive.Value)
             {

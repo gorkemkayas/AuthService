@@ -1,0 +1,176 @@
+﻿using AuthService.Application.Common;
+using AuthService.Application.Dtos.User;
+using AuthService.Application.Interfaces;
+using AuthService.Application.Interfaces.Services;
+using AuthService.Application.Results;
+using AuthService.Infrastructure.Persistance.Entities;
+using Microsoft.AspNetCore.Identity;
+
+namespace AuthService.Infrastructure.Services
+{
+    public class UserService : IUserService
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly UserManager<ApplicationUser> _userManager;
+
+        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
+        {
+            _unitOfWork = unitOfWork;
+            _userManager = userManager;
+        }
+        public async Task<ServiceResult<UserDto>> CreateUserAsync(CreateUserDto createUserDto)
+        {
+            var userExists = await _unitOfWork.Users.GetByEmailAsync(createUserDto.Email);
+            if (userExists is not null)
+            {
+                return ServiceResult<UserDto>.Fail("User with the given email already exists.", ErrorCodes.NotFound);
+            }
+            var newUser = new ApplicationUser
+            {
+                UserName = GenerateUserName(createUserDto.Name, createUserDto.Surname),
+                Email = createUserDto.Email,
+                Name = createUserDto.Name,
+                Surname = createUserDto.Surname,
+                TenantId = createUserDto.TenantId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var createdUser = await _userManager.CreateAsync(newUser, createUserDto.Password);
+
+            if (createdUser is null || !createdUser.Succeeded)
+            {
+                var errors = createdUser?.Errors.Select(e => e.Description).ToArray() ?? Array.Empty<string>();
+                return ServiceResult<UserDto>.Fail($"Failed to create user. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+
+            }
+            var userDto = new UserDto
+            {
+                Id = newUser.Id,
+                Name = newUser.Name,
+                Surname = newUser.Surname,
+                Email = newUser.Email,
+                TenantId = newUser.TenantId,
+                CreatedAt = newUser.CreatedAt
+            };
+            return ServiceResult<UserDto>.Ok(userDto, "User created successfully.");
+        }
+        public async Task<ServiceResult<UserDto>> GetUserByEmailAsync(string email)
+        {
+            var user = await _unitOfWork.Users.GetByEmailAsync(email);
+            if (user is null)
+            {
+                return ServiceResult<UserDto>.Fail("User not found.", ErrorCodes.NotFound);
+            }
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Surname = user.Surname,
+                Email = user.Email,
+                TenantId = user.TenantId,
+                CreatedAt = user.CreatedAt
+            };
+            return ServiceResult<UserDto>.Ok(userDto, "User retrieved successfully.");
+        }
+        public async Task<ServiceResult<UserDto>> GetUserByIdAsync(string id)
+        {
+            var user = await _unitOfWork.Users.GetByIdAsync(id);
+            if (user is null)
+            {
+                return ServiceResult<UserDto>.Fail("User not found.", ErrorCodes.NotFound);
+            }
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Surname = user.Surname,
+                Email = user.Email,
+                TenantId = user.TenantId,
+                CreatedAt = user.CreatedAt
+            };
+            return ServiceResult<UserDto>.Ok(userDto, "User retrieved successfully.");
+        }
+        public async Task<ServiceResult> DeleteUserAsync(string id)
+        {
+            var user = await _unitOfWork.Users.GetByIdAsync(id);
+            if (user is null)
+            {
+                return ServiceResult.Fail("User not found.", ErrorCodes.NotFound);
+            }
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+            var result = await _userManager.DeleteAsync(appUser!);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult.Fail($"Failed to delete user. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+            return ServiceResult.Ok("User deleted successfully.");
+        }
+        public async Task<ServiceResult> UpdateUserAsync(string id, UpdateUserDto updateUserDto)
+        {
+            var user = await _unitOfWork.Users.GetByIdAsync(id);
+            if (user is null)
+                return ServiceResult.Fail("User not found.", ErrorCodes.NotFound);
+
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+            appUser!.Name = updateUserDto.Name!;
+            appUser.Surname = updateUserDto.Surname!;
+            appUser.Email = updateUserDto.Email;
+            var result = await _userManager.UpdateAsync(appUser);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult.Fail($"Failed to update user. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+            return ServiceResult.Ok("User updated successfully.");
+        }
+        public async Task<ServiceResult> ChangeUserPasswordAsync(string id, ChangeUserPasswordDto changePasswordDto)
+        {
+            var user = await _unitOfWork.Users.GetByIdAsync(id);
+            if (user is null)
+                return ServiceResult.Fail("User not found.", ErrorCodes.NotFound);
+
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+            var result = await _userManager.ChangePasswordAsync(appUser!, changePasswordDto.CurrentPassword, changePasswordDto.NewPassword);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult.Fail($"Failed to change password. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+            return ServiceResult.Ok("Password changed successfully.");
+        }
+        public async Task<ServiceResult<int>> GetUserCountByTenantIdAsync(int tenantId)
+        {
+            var count = await _unitOfWork.Users.GetCountByTenantIdAsync(tenantId);
+            return ServiceResult<int>.Ok(count, "User count retrieved successfully.");
+        }
+        public async Task<ServiceResult<bool>> CheckUserExistsAsync(string id)
+        {
+            var exists = await _unitOfWork.Users.ExistsAsync(id);
+            return ServiceResult<bool>.Ok(exists, "User existence check completed successfully.");
+        }
+        public async Task<ServiceResult<bool>> CheckUserExistsByEmailAsync(string email)
+        {
+            var user = await _unitOfWork.Users.GetByEmailAsync(email);
+            var exists = user is not null;
+            return ServiceResult<bool>.Ok(exists, "User existence check by email completed successfully.");
+        }
+        public async Task<ServiceResult> ResetUserPasswordAsync(string email, string newPassword)
+        {
+            var user = await _unitOfWork.Users.GetByEmailAsync(email);
+            if (user is null)
+                return ServiceResult.Fail("User not found.", ErrorCodes.NotFound);
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+            var token = await _userManager.GeneratePasswordResetTokenAsync(appUser!);
+            var result = await _userManager.ResetPasswordAsync(appUser!, token, newPassword);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult.Fail($"Failed to reset password. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+            return ServiceResult.Ok("Password reset successfully.");
+        }
+        private string GenerateUserName(string name, string surname) => $"{name}.{surname}.{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+
+    }
+}

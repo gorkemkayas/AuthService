@@ -5,14 +5,14 @@
         Task<TDomain?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default);
 
         // Domain-friendly filtre parametreleri ile listeleme
-        Task<IEnumerable<TDomain>?> GetAllAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default);
-        Task<IEnumerable<TDomain>?> FindAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default);
+        Task<IEnumerable<TDomain>?> GetAllAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default);
+        Task<IEnumerable<TDomain>?> FindAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default);
         Task AddAsync(TDomain entity, CancellationToken cancellationToken = default);
         Task AddRangeAsync(IEnumerable<TDomain> entities, CancellationToken cancellationToken = default);
         void Update(TDomain entity);
         void Remove(TDomain entity);
         void RemoveRange(IEnumerable<TDomain> entities);
-        Task<bool> ExistsAsync(int? tenantId = null, bool? onlyActive = null, CancellationToken cancellationToken = default);
+        Task<bool> ExistsAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default);
     }
 
 }
