@@ -13,7 +13,7 @@ namespace AuthService.Infrastructure.Extensions
         public static IServiceCollection AddRepositoryRegistrations(this IServiceCollection services)
         {
             services.AddScoped<IEntityMapper, EntityMapper>();
-            services.AddScoped(typeof(IGenericRepository<,,>), typeof(GenericRepository<,,>));
+            services.AddScoped(typeof(IGenericRepository<,>), typeof(GenericRepository<,,>));
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<ITenantRepository, TenantRepository>();
             services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();

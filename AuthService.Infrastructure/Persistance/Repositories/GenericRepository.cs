@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuthService.Infrastructure.Persistance.Repositories
 {
-    public class GenericRepository<TDomain, TData, TKey> : IGenericRepository<TDomain, TData, TKey> where TDomain : class where TData : class
+    public class GenericRepository<TDomain, TData, TKey> : IGenericRepository<TDomain,TKey> where TDomain : class where TData : class
     {
         protected readonly AuthDbContext _context;
         private readonly DbSet<TData> _dbSet;
@@ -76,6 +76,11 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             return datas;
 
         }
+        public async Task<IEnumerable<TDomain>?> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            var entities = _dbSet.AsNoTracking().AsEnumerable();
+            return entities.Select(e => _mapper.MapToDomain<TDomain, TData>(e));
+        }
 
         public async Task<TDomain?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default)
         {
@@ -131,6 +136,12 @@ namespace AuthService.Infrastructure.Persistance.Repositories
 
             _dbSet.Update(mappedEntity);
 
+        }
+
+        public async Task<TDomain?> GetByNameAsync(string name, CancellationToken cancellationToken = default)
+        {
+            var entity = await _dbSet.Where(e => EF.Property<string>(e, "Name") == name).FirstOrDefaultAsync(cancellationToken);
+            return entity == null ? null : _mapper.MapToDomain<TDomain, TData>(entity);
         }
 
     }

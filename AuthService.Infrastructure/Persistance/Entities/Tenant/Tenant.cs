@@ -3,7 +3,8 @@
     public class Tenant
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
+        public string Domain { get; set; } = null!;
         public bool IsActive { get; set; } = true;
         public bool IsSystem { get; set; } = false;
 
@@ -16,6 +17,6 @@
         public string HashedPassword { get; set; } = "0000000000";
 
         // Navigation Properties
-        public ICollection<ApplicationUser> ApplicationUsers { get; set; }
+        public ICollection<ApplicationUser> ApplicationUsers { get; set; } = new List<ApplicationUser>();
     }
 }

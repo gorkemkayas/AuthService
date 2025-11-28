@@ -3,6 +3,7 @@ using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
+using AuthService.Infrastructure.Common;
 using AuthService.Infrastructure.Persistance.Entities;
 using Microsoft.AspNetCore.Identity;
 
@@ -27,7 +28,7 @@ namespace AuthService.Infrastructure.Services
             }
             var newUser = new ApplicationUser
             {
-                UserName = GenerateUserName(createUserDto.Name, createUserDto.Surname),
+                UserName = GeneratorHelper.GenerateUsername(createUserDto.Name, createUserDto.Surname),
                 Email = createUserDto.Email,
                 Name = createUserDto.Name,
                 Surname = createUserDto.Surname,
@@ -170,7 +171,6 @@ namespace AuthService.Infrastructure.Services
             }
             return ServiceResult.Ok("Password reset successfully.");
         }
-        private string GenerateUserName(string name, string surname) => $"{name}.{surname}.{Guid.NewGuid().ToString("N").Substring(0, 8)}";
 
     }
 }
