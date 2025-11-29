@@ -11,10 +11,26 @@ namespace AuthService.Infrastructure.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
-        public RoleService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
+        private readonly RoleManager<IdentityRole> _roleManager;
+        public RoleService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
+            _roleManager = roleManager;
+        }
+
+        public async Task<ServiceResult> CreateRoleAsync(string roleName)
+        {
+            var roleExists = await _roleManager.RoleExistsAsync(roleName);
+            if (roleExists)
+                return ServiceResult.Fail("Role already exists.", ErrorCodes.Unexpected);
+            var result = await _roleManager.CreateAsync(new IdentityRole(roleName));
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult.Fail($"Failed to create role. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+            return ServiceResult.Ok("Role created successfully.");
         }
         public async Task<ServiceResult> AssignRoleToUserAsync(string userId, string roleName)
         {
