@@ -4,7 +4,8 @@ namespace AuthService.Application.Interfaces.Repositories
 {
     public interface IUserRepository :IGenericRepository<User,string>
     {
-        public Task<User?> GetByEmailAsync(string email);
-        public Task<int> GetCountByTenantIdAsync(int id);
+        Task<User?> GetByEmailAsync(string email);
+        Task<int> GetCountByTenantIdAsync(int id);
+        Task<bool> DeleteUserById(string id);
     }
 }

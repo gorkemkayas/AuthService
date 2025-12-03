@@ -44,21 +44,21 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             return query.AnyAsync(cancellationToken);
         }
 
-        public async Task<IEnumerable<TDomain>?> FindAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default)
+        public async Task<TDomain?> FindAsync(TKey id, bool? onlyActive = null, CancellationToken cancellationToken = default)
         {
             var query = _dbSet.AsQueryable();
-            if (id != null)
-            {
-                query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
-            }
+
+            query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
+
             if (onlyActive.HasValue && onlyActive.Value)
             {
                 query = query.Where(e => EF.Property<bool>(e, "IsActive") == true);
             }
-            var dataEntities = await query.ToListAsync(cancellationToken);
-            var datas = dataEntities.Select(e => _mapper.MapToDomain<TDomain, TData>(e));
-            return datas;
+
+            var dataEntity = await query.FirstOrDefaultAsync(cancellationToken);
+            return dataEntity == null ? null : _mapper.MapToDomain<TDomain, TData>(dataEntity);
         }
+
 
         public async Task<IEnumerable<TDomain>?> GetAllAsync(TKey? id, bool? onlyActive = null, CancellationToken cancellationToken = default)
         {
@@ -78,7 +78,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
         }
         public async Task<IEnumerable<TDomain>?> GetAllAsync(CancellationToken cancellationToken = default)
         {
-            var entities = _dbSet.AsNoTracking().AsEnumerable();
+            var entities =  await _dbSet.AsNoTracking().ToListAsync();
             return entities.Select(e => _mapper.MapToDomain<TDomain, TData>(e));
         }
 
@@ -88,41 +88,6 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             if (entity == null)
                 return null;
             return _mapper.MapToDomain<TDomain, TData>(entity);
-        }
-
-        public void Remove(TDomain entity)
-        {
-            var mappedEntity = _mapper.MapToData<TDomain, TData>(entity);
-            var trackedEntity = _context.ChangeTracker.Entries<TData>().FirstOrDefault(e => e.Entity.Equals(mappedEntity));
-
-            if (trackedEntity != null)
-            {
-                trackedEntity.State = EntityState.Deleted;
-            }
-
-            _dbSet.Remove(mappedEntity);
-        }
-
-        public void RemoveRange(IEnumerable<TDomain> entities)
-        {
-            foreach (var entity in entities)
-            {
-                var mappedEntity = _mapper.MapToData<TDomain, TData>(entity);
-
-                // ChangeTracker'da aynı Id’ye sahip entity var mı kontrol et
-                var trackedEntity = _context.ChangeTracker
-                                            .Entries<TData>()
-                                            .FirstOrDefault(e => e.Entity.Equals(mappedEntity));
-
-                if (trackedEntity != null)
-                {
-                    trackedEntity.State = EntityState.Deleted; // Takip ediliyorsa sadece silme state'i ata
-                }
-                else
-                {
-                    _dbSet.Remove(mappedEntity); // Takip edilmiyorsa DbSet üzerinden işaretle
-                }
-            }
         }
 
         public void Update(TDomain entity)

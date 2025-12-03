@@ -26,7 +26,8 @@ namespace AuthService.Infrastructure.Extensions
                     dbContext,
                     ctx => provider.GetRequiredService<IUserRepository>(),
                     ctx => provider.GetRequiredService<ITenantRepository>(),
-                    ctx => provider.GetRequiredService<IRefreshTokenRepository>()
+                    ctx => provider.GetRequiredService<IRefreshTokenRepository>(),
+                    ctx => provider.GetRequiredService<IRoleRepository>()
                 );
             });
 

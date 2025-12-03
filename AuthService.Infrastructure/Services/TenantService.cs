@@ -71,17 +71,20 @@ public class TenantService : ITenantService
         };
         return ServiceResult<TenantDto>.Ok(tenantDto, "Tenant created successfully.");
     }
-    public async Task<ServiceResult> DisableTenantAsync(int tenantId)
+    public async Task<ServiceResult> DeleteTenantAsync(int tenantId)
     {
         var tenant = await _unitOfWork.Tenants.GetByIdAsync(tenantId);
         if (tenant is null)
             return ServiceResult.Fail("Tenant does not exist.");
-        if (!tenant.IsActive)
+        if (tenant.IsDeleted)
             return ServiceResult.Fail("Tenant is already inactive.");
+        tenant.IsDeleted = false;
         tenant.IsActive = false;
         tenant.UpdatedAt = DateTime.UtcNow;
-        _unitOfWork.Tenants.Update(tenant);
+
+        _unitOfWork.Tenants.Update(tenant); // entity'i modified olarak işaretledik.
         await _unitOfWork.SaveChangesAsync();
+
         return ServiceResult.Ok("Tenant disabled successfully.");
     }
     public async Task<ServiceResult> EnableTenantAsync(int tenantId)

@@ -9,5 +9,7 @@ namespace AuthService.Application.Interfaces.Repositories
         Task<int> GetActiveTenantCountAsync(CancellationToken cancellationToken = default);
         Task<int> GetInactiveTenantCountAsync(CancellationToken cancellationToken = default);
         Task<int> GetTotalTenantCountAsync(CancellationToken cancellationToken = default);
+
+        Task<bool> DeleteTenantById(int id);
     }
 }

@@ -10,7 +10,7 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult<TenantDto>> GetTenantByIdAsync(int tenantId);
         Task<ServiceResult<TenantDto>> GetTenantByNameAsync(string tenantName);
         Task<ServiceResult<TenantDto>> CreateNewTenantAsync(CreateTenantDto createTenantDto);
-        Task<ServiceResult> DisableTenantAsync(int tenantId);
+        Task<ServiceResult> DeleteTenantAsync(int tenantId);
         Task<ServiceResult> EnableTenantAsync(int tenantId);
         Task<ServiceResult<List<TenantDto>>> GetAllTenantsAsync();
         Task<ServiceResult> IsTenantExistsAsync(int tenantId);

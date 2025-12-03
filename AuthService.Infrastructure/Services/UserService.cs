@@ -98,13 +98,15 @@ namespace AuthService.Infrastructure.Services
             {
                 return ServiceResult.Fail("User not found.", ErrorCodes.NotFound);
             }
-            var appUser = await _userManager.FindByIdAsync(user.Id);
-            var result = await _userManager.DeleteAsync(appUser!);
-            if (!result.Succeeded)
+
+            await _unitOfWork.Users.DeleteUserById(id);
+            var effectedOnes = await _unitOfWork.SaveChangesAsync();
+          
+            if(effectedOnes == 0)
             {
-                var errors = result.Errors.Select(e => e.Description).ToArray();
-                return ServiceResult.Fail($"Failed to delete user. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+                return ServiceResult.Fail("Failed to delete user.", ErrorCodes.Unexpected);
             }
+
             return ServiceResult.Ok("User deleted successfully.");
         }
         public async Task<ServiceResult> UpdateUserAsync(string id, UpdateUserDto updateUserDto)

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace AuthService.API.Controllers
 {
     [ApiController]
-    [ApiExplorerSettings(IgnoreApi = true)]
     public abstract class BaseController : ControllerBase
     {
         public IActionResult FromServiceResult(ServiceResult result)

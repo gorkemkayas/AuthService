@@ -2,5 +2,6 @@
 {
     public interface IRefreshTokenRepository
     {
+        Task<bool> DeleteRefreshTokenById(int id);
     }
 }

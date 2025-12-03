@@ -13,10 +13,16 @@ namespace AuthService.Infrastructure.Mapping
             {
                 User user => UserMapper.ToData(user) as TData
                               ?? throw new InvalidOperationException("Mapping failed"),
+
                 AuthService.Domain.Entities.RefreshToken token => RefreshTokenMapper.ToData(token) as TData
                                      ?? throw new InvalidOperationException("Mapping failed"),
+
                 AuthService.Domain.Entities.Tenant tenant => TenantMapper.ToData(tenant) as TData
                                   ?? throw new InvalidOperationException("Mapping failed"),
+
+                AuthService.Domain.Entities.Role role => RoleMapper.ToData(role) as TData
+                                  ?? throw new InvalidOperationException("Mapping failed"),
+
                 _ => throw new InvalidOperationException("Mapping for this type is not implemented")
             };
         }
@@ -28,12 +34,19 @@ namespace AuthService.Infrastructure.Mapping
             {
                 ApplicationUser user => UserMapper.ToDomain(user) as TDomain
                                        ?? throw new InvalidOperationException("Mapping failed"),
+
                 AuthService.Infrastructure.Persistance.Entities.RefreshToken token =>
                     RefreshTokenMapper.ToDomain(token) as TDomain
                     ?? throw new InvalidOperationException("Mapping failed"),
+
                 AuthService.Infrastructure.Persistance.Entities.Tenant tenant =>
                     TenantMapper.ToDomain(tenant) as TDomain
                     ?? throw new InvalidOperationException("Mapping failed"),
+
+                AuthService.Infrastructure.Persistance.Entities.ApplicationRole role => 
+                    RoleMapper.ToDomain(role) as TDomain
+                    ?? throw new InvalidOperationException("Mapping failed"),
+
                 _ => throw new InvalidOperationException("Mapping for this type is not implemented")
             };
         }

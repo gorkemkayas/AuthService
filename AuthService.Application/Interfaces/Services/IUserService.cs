@@ -16,5 +16,4 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult<bool>> CheckUserExistsByEmailAsync(string email);
         Task<ServiceResult> ResetUserPasswordAsync(string email, string newPassword);
     }
-
 }

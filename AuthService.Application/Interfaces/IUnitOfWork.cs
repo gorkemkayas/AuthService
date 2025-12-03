@@ -7,6 +7,7 @@ namespace AuthService.Application.Interfaces
         IUserRepository Users { get; }
         ITenantRepository Tenants { get; }
         IRefreshTokenRepository RefreshTokens { get; }
+        IRoleRepository Roles { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

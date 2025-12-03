@@ -1,6 +1,8 @@
-﻿namespace AuthService.Infrastructure.Persistance.Entities
+﻿using AuthService.Infrastructure.Common;
+
+namespace AuthService.Infrastructure.Persistance.Entities
 {
-    public class Tenant
+    public class Tenant :IBaseEntity
     {
         public int Id { get; set; }
         public string Name { get; set; } = null!;
