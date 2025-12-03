@@ -4,6 +4,7 @@ using AuthService.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddCustomLogging(); //Serilog + Seq
 
 // Add DbContext configurations
 builder.Services.ConfigureDbConfigurationOptions(builder.Configuration);

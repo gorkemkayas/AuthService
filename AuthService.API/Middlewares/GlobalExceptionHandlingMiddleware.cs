@@ -24,7 +24,7 @@ namespace AuthService.API.Middlewares
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled exception caught by middleware.");
+                _logger.LogError(ex, "Unhandled exception on {Method} {Path}",context.Request.Method, context.Request.Path);
                 await HandleExceptionAsync(context, ex);
             }
         }
