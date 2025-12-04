@@ -24,7 +24,21 @@ namespace AuthService.Infrastructure.Extensions
                 opt.UseNpgsql(dbConfig.ConnectionString);
             });
 
-            services.AddIdentity<ApplicationUser, ApplicationRole>()
+            services.AddIdentity<ApplicationUser, ApplicationRole>(opt =>
+            {
+                opt.Lockout.MaxFailedAccessAttempts = 5;
+                opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                opt.Lockout.AllowedForNewUsers = true;
+
+                opt.User.RequireUniqueEmail = true;
+                
+                opt.Password.RequireNonAlphanumeric = false;
+                opt.Password.RequireDigit = false;
+                opt.Password.RequireUppercase = false;
+                opt.Password.RequireLowercase = false;
+                opt.Password.RequiredLength = 5;
+
+            })
                 .AddEntityFrameworkStores<AuthDbContext>()
                 .AddDefaultTokenProviders();
 

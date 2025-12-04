@@ -8,6 +8,7 @@ namespace AuthService.API.Controllers
     [ApiController]
     public abstract class BaseController : ControllerBase
     {
+        [NonAction]
         public IActionResult FromServiceResult(ServiceResult result)
         {
             if (result.Success) return Ok(ApiResult.Ok(result.Message ?? "Operation completed successfully."));
@@ -21,6 +22,7 @@ namespace AuthService.API.Controllers
             };
         }
 
+        [NonAction]
         public IActionResult FromServiceResult<T>(ServiceResult<T> result)
         {
             if (result.Success) return Ok(ApiResult<T>.Ok(result.Data!, result.Message ?? "Operation completed successfully."));

@@ -13,30 +13,36 @@ namespace AuthService.Infrastructure.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
 
-        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager)
+        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
+            _signInManager = signInManager;
         }
-        public async Task<ServiceResult<UserDto>> CreateUserAsync(CreateUserDto createUserDto)
+        public async Task<ServiceResult<UserDto>> CreateTenantUserAsync(CreateTenantUserRequest request)
         {
-            var userExists = await _unitOfWork.Users.GetByEmailAsync(createUserDto.Email);
+            var userExists = await _unitOfWork.Users.GetByEmailAsync(request.Email);
             if (userExists is not null)
             {
                 return ServiceResult<UserDto>.Fail("User with the given email already exists.", ErrorCodes.NotFound);
             }
+            var isTenantExists = await _unitOfWork.Tenants.ExistsAsync(request.TenantId);
+            if (!isTenantExists)
+                return ServiceResult<UserDto>.Fail("Tenant not found.", ErrorCodes.NotFound);
+
             var newUser = new ApplicationUser
             {
-                UserName = GeneratorHelper.GenerateUsername(createUserDto.Name, createUserDto.Surname),
-                Email = createUserDto.Email,
-                Name = createUserDto.Name,
-                Surname = createUserDto.Surname,
-                TenantId = createUserDto.TenantId,
+                UserName = GeneratorHelper.GenerateUsername(request.Name, request.Surname),
+                Email = request.Email,
+                Name = request.Name,
+                Surname = request.Surname,
+                TenantId = request.TenantId,
                 CreatedAt = DateTime.UtcNow
             };
 
-            var createdUser = await _userManager.CreateAsync(newUser, createUserDto.Password);
+            var createdUser = await _userManager.CreateAsync(newUser, request.Password);
 
             if (createdUser is null || !createdUser.Succeeded)
             {
@@ -174,5 +180,44 @@ namespace AuthService.Infrastructure.Services
             return ServiceResult.Ok("Password reset successfully.");
         }
 
+        public async Task<ServiceResult<LoginUserResponse>> LoginAsync(LoginUserRequest loginUserRequest)
+        {
+            var user = await _unitOfWork.Users.GetByEmailAsync(loginUserRequest.Email);
+            if (user is null)
+                return ServiceResult<LoginUserResponse>.Fail("User not found.", ErrorCodes.NotFound);
+
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+
+            if (await _userManager.IsLockedOutAsync(appUser!))
+            {
+                var lockoutEnd = await _userManager.GetLockoutEndDateAsync(appUser!);
+                var minutesLeft = (lockoutEnd!.Value - DateTimeOffset.UtcNow).TotalMinutes;
+                return ServiceResult<LoginUserResponse>.Fail(
+                    $"Account is locked. Try again in {Math.Ceiling(minutesLeft)} minutes.",
+                    ErrorCodes.Unauthorized
+                );
+            }
+            var passwordValid = await _userManager.CheckPasswordAsync(appUser!, loginUserRequest.Password);
+            if (!passwordValid)
+            {
+                await _userManager.AccessFailedAsync(appUser!);  // lockout sayaç artır
+                var accessFailedCount = await _userManager.GetAccessFailedCountAsync(appUser!);
+                var max = _userManager.Options.Lockout.MaxFailedAccessAttempts;
+
+                return ServiceResult<LoginUserResponse>.Fail(
+                    $"Invalid password. {max - accessFailedCount} attempts remaining before lockout.",
+                    ErrorCodes.Unauthorized
+                );
+            }
+
+            await _userManager.ResetAccessFailedCountAsync(appUser!);
+            return ServiceResult<LoginUserResponse>.Ok(new LoginUserResponse
+            {
+                UserId = appUser!.Id,
+                Email = appUser.Email!,
+                TenantId = appUser.TenantId,
+                TenantDomain = appUser.Tenant.Domain ?? string.Empty
+            }, "Login successful.");
+        }
     }
 }

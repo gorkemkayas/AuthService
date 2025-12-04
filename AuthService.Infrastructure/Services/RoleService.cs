@@ -13,9 +13,9 @@ namespace AuthService.Infrastructure.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly IEntityMapper _mapper;
-        public RoleService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IEntityMapper mapper)
+        public RoleService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, RoleManager<ApplicationRole> roleManager, IEntityMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
@@ -28,7 +28,7 @@ namespace AuthService.Infrastructure.Services
             var roleExists = await _roleManager.RoleExistsAsync(roleName);
             if (roleExists)
                 return ServiceResult.Fail("Role already exists.", ErrorCodes.Unexpected);
-            var result = await _roleManager.CreateAsync(new IdentityRole(roleName));
+            var result = await _roleManager.CreateAsync(new ApplicationRole { Name = roleName});
             if (!result.Succeeded)
             {
                 var errors = result.Errors.Select(e => e.Description).ToArray();
