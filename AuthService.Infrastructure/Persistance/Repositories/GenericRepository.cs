@@ -18,7 +18,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             _mapper = mapper;
         }
 
-        public async Task AddAsync(TDomain entity, CancellationToken cancellationToken = default)
+        public virtual async Task AddAsync(TDomain entity, CancellationToken cancellationToken = default)
         {
             var dataEntity = _mapper.MapToData<TDomain, TData>(entity);
             await _dbSet.AddAsync(dataEntity, cancellationToken);
@@ -35,7 +35,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             var query = _dbSet.AsQueryable();
             if (id != null)
             {
-                query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
+                query = query.Where(e => EF.Property<TKey>(e, "Id")!.Equals(id));
             }
             if (onlyActive.HasValue && onlyActive.Value)
             {
@@ -48,7 +48,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
         {
             var query = _dbSet.AsQueryable();
 
-            query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
+            query = query.Where(e => EF.Property<TKey>(e, "Id")!.Equals(id));
 
             if (onlyActive.HasValue && onlyActive.Value)
             {
@@ -65,7 +65,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             var query = _dbSet.AsNoTracking().AsQueryable();
             if (id != null)
             {
-                query = query.Where(e => EF.Property<TKey>(e, "Id").Equals(id));
+                query = query.Where(e => EF.Property<TKey>(e, "Id")!.Equals(id));
             }
             if (onlyActive.HasValue && onlyActive.Value)
             {
@@ -84,7 +84,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
 
         public async Task<TDomain?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default)
         {
-            var entity = await _dbSet.FindAsync(new[] { id }, cancellationToken);
+            var entity = await _dbSet.FindAsync(id);
             if (entity == null)
                 return null;
             return _mapper.MapToDomain<TDomain, TData>(entity);

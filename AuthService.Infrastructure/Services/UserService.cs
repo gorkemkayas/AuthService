@@ -3,7 +3,9 @@ using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
+using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Common;
+using AuthService.Infrastructure.Mapping;
 using AuthService.Infrastructure.Persistance.Entities;
 using Microsoft.AspNetCore.Identity;
 
@@ -12,26 +14,33 @@ namespace AuthService.Infrastructure.Services
     public class UserService : IUserService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IEntityMapper _entityMapper;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
 
-        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IEntityMapper entityMapper)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
             _signInManager = signInManager;
+            _entityMapper = entityMapper;
         }
         public async Task<ServiceResult<UserDto>> CreateTenantUserAsync(CreateTenantUserRequest request)
         {
             var userExists = await _unitOfWork.Users.GetByEmailAsync(request.Email);
             if (userExists is not null)
             {
-                return ServiceResult<UserDto>.Fail("User with the given email already exists.", ErrorCodes.NotFound);
+                return ServiceResult<UserDto>.Fail("User with the given email already exists.", ErrorCodes.AlreadyExists);
             }
             var isTenantExists = await _unitOfWork.Tenants.ExistsAsync(request.TenantId);
             if (!isTenantExists)
                 return ServiceResult<UserDto>.Fail("Tenant not found.", ErrorCodes.NotFound);
 
+            var tenant = await _unitOfWork.Tenants.GetByIdAsync(request.TenantId);
+            if (tenant == null)
+                return ServiceResult<UserDto>.Fail("Tenant not found.", ErrorCodes.NotFound);
+
+            var mappedTenant = _entityMapper.MapToData<AuthService.Domain.Entities.Tenant,AuthService.Infrastructure.Persistance.Entities.Tenant>(tenant);
             var newUser = new ApplicationUser
             {
                 UserName = GeneratorHelper.GenerateUsername(request.Name, request.Surname),
@@ -211,11 +220,14 @@ namespace AuthService.Infrastructure.Services
             }
 
             await _userManager.ResetAccessFailedCountAsync(appUser!);
+
+            var tenant = await _unitOfWork.Tenants.FindAsync(user.TenantId);
+
             return ServiceResult<LoginUserResponse>.Ok(new LoginUserResponse
             {
                 UserId = appUser!.Id,
                 Email = appUser.Email!,
-                TenantId = appUser.TenantId,
+                TenantId = tenant!.Id,
                 TenantDomain = appUser.Tenant.Domain ?? string.Empty
             }, "Login successful.");
         }

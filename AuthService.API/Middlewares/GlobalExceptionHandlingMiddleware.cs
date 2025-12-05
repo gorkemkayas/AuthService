@@ -1,4 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using AuthService.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.Json;
@@ -16,7 +19,7 @@ namespace AuthService.API.Middlewares
             _logger = logger;
         }
 
-        public async Task InvokeAsync(HttpContext context)
+        public async Task InvokeAsync(HttpContext context, IServiceProvider serviceProvider)
         {
             try
             {
@@ -24,6 +27,11 @@ namespace AuthService.API.Middlewares
             }
             catch (Exception ex)
             {
+                //using var scope = serviceProvider.CreateScope();
+                //var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                //var subject = $"Hata oluştu: {ex.GetType().Name}";
+                //var body = $"<p>Mesaj: {ex.Message}</p><pre>{ex.StackTrace}</pre>";
+                //await emailService.SendEmailAsync("gorkemkayas@hotmail.com", subject, body);
                 _logger.LogError(ex, "Unhandled exception on {Method} {Path}",context.Request.Method, context.Request.Path);
                 await HandleExceptionAsync(context, ex);
             }

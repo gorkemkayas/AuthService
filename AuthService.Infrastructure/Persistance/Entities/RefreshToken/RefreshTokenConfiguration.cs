@@ -35,6 +35,24 @@ namespace AuthService.Infrastructure.Persistance.Entities
                    .WithMany(u => u.RefreshTokens)
                    .HasForeignKey(r => r.ApplicationUserId)
                    .OnDelete(DeleteBehavior.Cascade);
+
+            // new update
+            builder.Property(r => r.IpAddress)
+                .HasMaxLength(100);
+
+            builder.Property(r => r.UserAgent)
+                .HasMaxLength(500);
+
+            builder.Property(r => r.DeviceName)
+                .HasMaxLength(200);
+
+            builder.Property(r => r.RevokedAt);
+
+            builder.Property(r => r.RevokedByIp)
+                .HasMaxLength(100);
+
+            builder.Property(r => r.ReplacedByToken)
+                .HasMaxLength(500);
         }
     }
 }

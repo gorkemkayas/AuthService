@@ -11,13 +11,21 @@ namespace AuthService.API.Controllers
         [NonAction]
         public IActionResult FromServiceResult(ServiceResult result)
         {
-            if (result.Success) return Ok(ApiResult.Ok(result.Message ?? "Operation completed successfully."));
+            if (result.Success)
+                return Ok(ApiResult.Ok(result.Message ?? "Operation completed successfully."));
 
             return result.ErrorCode switch
             {
-                ErrorCodes.NotFound => NotFound(ApiResult.Fail(result.Message!, result.ErrorCode)),
                 ErrorCodes.ValidationError => BadRequest(ApiResult.Fail(result.Message!, result.ErrorCode)),
                 ErrorCodes.Unauthorized => Unauthorized(ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.Forbidden => Forbid(),
+                ErrorCodes.NotFound => NotFound(ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.Conflict => Conflict(ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.AlreadyExists => Conflict(ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.NotAcceptable => StatusCode(406, ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.UnsupportedMediaType => StatusCode(415, ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.TooManyRequests => StatusCode(429, ApiResult.Fail(result.Message!, result.ErrorCode)),
+                ErrorCodes.TokenExpired => Unauthorized(ApiResult.Fail(result.Message!, result.ErrorCode)),
                 _ => StatusCode(500, ApiResult.Fail(result.Message!, result.ErrorCode!))
             };
         }
@@ -25,15 +33,24 @@ namespace AuthService.API.Controllers
         [NonAction]
         public IActionResult FromServiceResult<T>(ServiceResult<T> result)
         {
-            if (result.Success) return Ok(ApiResult<T>.Ok(result.Data!, result.Message ?? "Operation completed successfully."));
+            if (result.Success)
+                return Ok(ApiResult<T>.Ok(result.Data!, result.Message ?? "Operation completed successfully."));
 
             return result.ErrorCode switch
             {
-                ErrorCodes.NotFound => NotFound(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
                 ErrorCodes.ValidationError => BadRequest(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
                 ErrorCodes.Unauthorized => Unauthorized(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.Forbidden => Forbid(),
+                ErrorCodes.NotFound => NotFound(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.Conflict => Conflict(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.AlreadyExists => Conflict(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.NotAcceptable => StatusCode(406, ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.UnsupportedMediaType => StatusCode(415, ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.TooManyRequests => StatusCode(429, ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
+                ErrorCodes.TokenExpired => Unauthorized(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
                 _ => StatusCode(500, ApiResult<T>.Fail(result.Message!, result.ErrorCode!))
             };
         }
+
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces.Services;
+using AuthService.Infrastructure.Common;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthService.API.Controllers
@@ -25,12 +26,20 @@ namespace AuthService.API.Controllers
             if (!result.Success)
                 return FromServiceResult(result);
 
+            var ipAddress = ClientIpHelper.GetClientIp(HttpContext);
+            var userAgent = Request.Headers["User-Agent"].ToString();
+            var deviceName = DeviceParser.Parse(userAgent);
+
+
             var tokenResult = await _tokenService.CreateTenantUserTokenAsync(new CreateTenantUserTokenRequest
             {
                 UserId = result.Data!.UserId,
                 Email = result.Data.Email,
                 TenantId = result.Data.TenantId,
                 TenantDomain = result.Data.TenantDomain,
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                DeviceName = deviceName
             });
 
             return FromServiceResult(tokenResult);

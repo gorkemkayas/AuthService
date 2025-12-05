@@ -50,6 +50,24 @@ namespace AuthService.Infrastructure.Mapping
                 _ => throw new InvalidOperationException("Mapping for this type is not implemented")
             };
         }
-    }
+        public IEnumerable<TData> MapToData<TDomain, TData>(IEnumerable<TDomain> domainEntities)
+        where TDomain : class
+        where TData : class
+        {
+            foreach (var item in domainEntities)
+            {
+                yield return MapToData<TDomain, TData>(item);
+            }
+        }
 
+        public IEnumerable<TDomain> MapToDomain<TDomain, TData>(IEnumerable<TData> dataEntities)
+            where TDomain : class
+            where TData : class
+        {
+            foreach (var item in dataEntities)
+            {
+                yield return MapToDomain<TDomain, TData>(item);
+            }
+        }
+    }
 }

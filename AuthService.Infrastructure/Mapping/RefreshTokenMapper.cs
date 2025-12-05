@@ -16,7 +16,13 @@
                 CreatedAt = domainToken.CreatedAt,
                 UpdatedAt = domainToken.UpdatedAt,
                 IsDeleted = domainToken.IsDeleted,
-                ApplicationUserId = domainToken.UserId
+                ApplicationUserId = domainToken.UserId,
+                IpAddress = domainToken.IpAddress,
+                UserAgent = domainToken.UserAgent,
+                DeviceName = domainToken.DeviceName,
+                RevokedAt = domainToken.RevokedAt,
+                RevokedByIp = domainToken.RevokedByIp,
+                ReplacedByToken = domainToken.ReplacedByToken,
                 // Navigation property ApplicationUser repository tarafından yüklenir, burada maplemeye gerek yok
             };
         }
@@ -36,7 +42,13 @@
                 UpdatedAt = dataToken.UpdatedAt,
                 IsDeleted = dataToken.IsDeleted,
                 UserId = dataToken.ApplicationUserId,
-                User = dataToken.ApplicationUser != null ? UserMapper.ToDomain(dataToken.ApplicationUser) : null!
+                User = dataToken.ApplicationUser != null ? UserMapper.ToDomain(dataToken.ApplicationUser) : null!,
+                IpAddress = dataToken.IpAddress,
+                UserAgent = dataToken.UserAgent,
+                DeviceName = dataToken.DeviceName,
+                RevokedAt = dataToken.RevokedAt,
+                RevokedByIp = dataToken.RevokedByIp,
+                ReplacedByToken = dataToken.ReplacedByToken,
             };
         }
     }

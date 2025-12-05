@@ -13,6 +13,7 @@ namespace AuthService.Infrastructure.Extensions
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<ITenantService, TenantService>();
+            services.AddScoped<IEmailService, EmailService>();
             return services;
         }
     }
