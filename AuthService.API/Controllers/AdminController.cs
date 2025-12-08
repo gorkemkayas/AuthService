@@ -1,5 +1,7 @@
 ﻿using Asp.Versioning;
+using AuthService.Application.Common;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace AuthService.API.Controllers
 {
@@ -8,6 +10,9 @@ namespace AuthService.API.Controllers
     [Route("/api/v{version:apiVersion}/[controller]")]
     public class AdminController : BaseController
     {
-        
+        public AdminController(IOptions<TokenOptions> tokenOptions) : base(tokenOptions)
+        {
+            
+        }
     }
 }

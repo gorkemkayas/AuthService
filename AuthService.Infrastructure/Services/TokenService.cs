@@ -1,10 +1,13 @@
-﻿using AuthService.Application.Dtos.User;
+﻿using AuthService.Application.Common;
+using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
+using AuthService.Application.Interfaces.Contexts;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
 using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Mapping;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -17,16 +20,20 @@ namespace AuthService.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IEntityMapper _mapper;
         private readonly IConfiguration _configuration;
+        private readonly IClientContext _clientContext;
+        private readonly TokenOptions _tokenOptions;
         private readonly string _secret;
         private readonly string _issuer;
 
-        public TokenService(IConfiguration _config, IUnitOfWork unitOfWork, IEntityMapper mapper)
+        public TokenService(IConfiguration _config, IUnitOfWork unitOfWork, IEntityMapper mapper, IClientContext clientContext, IOptions<TokenOptions> options)
         {
             _configuration = _config;
             _secret = _configuration["Jwt:Secret"]!;
             _issuer = _configuration["Jwt:Issuer"]!;
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _clientContext = clientContext;
+            _tokenOptions = options.Value;
         }
         public async Task<ServiceResult<CreateTenantUserTokenResponse>> CreateTenantUserTokenAsync(CreateTenantUserTokenRequest request)
         {
@@ -132,7 +139,7 @@ namespace AuthService.Infrastructure.Services
                 Token = newRefreshToken,
                 UserId = request.UserId,
                 CreatedAt = DateTime.UtcNow,
-                Expires = DateTime.UtcNow.AddDays(7),
+                Expires = GetRefreshTokenExpiryByClient(),
                 IpAddress = request.IpAddress,
                 DeviceName = request.DeviceName,
                 UserAgent = request.UserAgent
@@ -141,6 +148,20 @@ namespace AuthService.Infrastructure.Services
             await _unitOfWork.SaveChangesAsync();
 
             return newRefreshToken;
+        }
+        public DateTime GetRefreshTokenExpiryByClient()
+        {
+            return _clientContext.ClientType switch
+            {
+                ClientTypes.Web =>
+                    DateTime.UtcNow.AddDays(_tokenOptions.WebRefreshTokenLifetimeDays),
+
+                ClientTypes.Mobile =>
+                    DateTime.UtcNow.AddDays(_tokenOptions.MobileRefreshTokenLifetimeDays),
+
+                _ =>
+                    DateTime.UtcNow.AddDays(_tokenOptions.RefreshTokenLifetimeDays)
+            };
         }
 
 
