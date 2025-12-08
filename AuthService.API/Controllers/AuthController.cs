@@ -1,8 +1,12 @@
 ﻿using Asp.Versioning;
+using AuthService.API.Models;
+using AuthService.Application.Common;
 using AuthService.Application.Dtos.User;
+using AuthService.Application.Interfaces.Contexts;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Infrastructure.Common;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace AuthService.API.Controllers
 {
@@ -13,10 +17,12 @@ namespace AuthService.API.Controllers
     {
         private readonly ITokenService _tokenService;
         private readonly IUserService _userService;
-        public AuthController(ITokenService tokenService, IUserService userService)
+        private readonly IClientContext _clientContext;
+        public AuthController(ITokenService tokenService, IUserService userService, IClientContext clientContext, IOptions<TokenOptions> tokenOptions) : base(tokenOptions)
         {
             _tokenService = tokenService;
             _userService = userService;
+            _clientContext = clientContext;
         }
 
         [HttpPost("login")]
@@ -41,6 +47,20 @@ namespace AuthService.API.Controllers
                 UserAgent = userAgent,
                 DeviceName = deviceName
             });
+            
+            if(!tokenResult.Success)
+                return FromServiceResult(tokenResult);
+
+            if(_clientContext.ClientType == ClientTypes.Web)
+            {
+                SetRefreshTokenCookie(tokenResult.Data!.RefreshToken);
+                var tenantResp = new CreateTenantUserTokenResponse()
+                {
+                    Token = tokenResult.Data!.Token,
+                };
+                return Ok(ApiResult<CreateTenantUserTokenResponse>.Ok(tenantResp, tokenResult.Message));
+            }
+            
 
             return FromServiceResult(tokenResult);
 

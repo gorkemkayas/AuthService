@@ -1,13 +1,22 @@
 ﻿using AuthService.API.Models;
 using AuthService.Application.Common;
+using AuthService.Application.Interfaces.Contexts;
 using AuthService.Application.Results;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace AuthService.API.Controllers
 {
     [ApiController]
     public abstract class BaseController : ControllerBase
     {
+        protected readonly TokenOptions _tokenOptions;
+
+        protected BaseController(IOptions<TokenOptions> tokenOptions)
+        {
+            _tokenOptions = tokenOptions.Value;
+        }
+
         [NonAction]
         public IActionResult FromServiceResult(ServiceResult result)
         {
@@ -50,6 +59,19 @@ namespace AuthService.API.Controllers
                 ErrorCodes.TokenExpired => Unauthorized(ApiResult<T>.Fail(result.Message!, result.ErrorCode!)),
                 _ => StatusCode(500, ApiResult<T>.Fail(result.Message!, result.ErrorCode!))
             };
+        }
+
+        protected void SetRefreshTokenCookie(string refreshToken)
+        {
+            var options = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/api/auth/refresh",
+                Expires = DateTimeOffset.UtcNow.AddDays(_tokenOptions.WebRefreshTokenLifetimeDays)
+            };
+            Response.Cookies.Append("refreshToken", refreshToken, options);
         }
 
     }

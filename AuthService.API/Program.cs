@@ -18,6 +18,10 @@ builder.Services.AddRepositoryRegistrations();
 
 // Add service registrations
 builder.Services.AddServiceRegistrations();
+builder.Services.AddTokenOptions(builder.Configuration);
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddClientContext(); // Register ClientContext for accessing client type
 
 // Add services to the container.
 
@@ -41,6 +45,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
+app.UseMiddleware<ClientTypeMiddleware>(); // Detecting client type from headers
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
