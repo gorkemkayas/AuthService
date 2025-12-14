@@ -23,6 +23,8 @@
                 RevokedAt = domainToken.RevokedAt,
                 RevokedByIp = domainToken.RevokedByIp,
                 ReplacedByToken = domainToken.ReplacedByToken,
+                DeviceId = domainToken.DeviceId,
+                ClientType = domainToken.ClientType,
                 // Navigation property ApplicationUser repository tarafından yüklenir, burada maplemeye gerek yok
             };
         }
@@ -49,6 +51,8 @@
                 RevokedAt = dataToken.RevokedAt,
                 RevokedByIp = dataToken.RevokedByIp,
                 ReplacedByToken = dataToken.ReplacedByToken,
+                DeviceId = dataToken.DeviceId,
+                ClientType = dataToken.ClientType
             };
         }
     }

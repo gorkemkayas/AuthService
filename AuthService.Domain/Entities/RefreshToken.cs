@@ -13,6 +13,9 @@ public class RefreshToken : BaseEntity<int>
     public string? UserAgent { get; set; }
     public string? DeviceName { get; set; }
 
+    public string ClientType { get; set; } = null!;
+    public string? DeviceId { get; set; }
+
     public DateTime? RevokedAt { get; set; }
     public string? RevokedByIp { get; set; }
     public string? ReplacedByToken { get; set; }

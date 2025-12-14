@@ -13,7 +13,6 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             : base(context, mapper)
         {
         }
-
         public Task<Tenant?> GetByIdAsync(int id) => base.GetByIdAsync(id);
         public async Task<int> GetActiveTenantCountAsync(CancellationToken cancellationToken = default) => await _context.Tenants.CountAsync(t => t.IsActive, cancellationToken);
         public async Task<int> GetInactiveTenantCountAsync(CancellationToken cancellationToken = default) => await _context.Tenants.CountAsync(t => !t.IsActive, cancellationToken);

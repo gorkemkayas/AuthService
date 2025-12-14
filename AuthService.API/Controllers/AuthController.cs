@@ -1,10 +1,10 @@
 ﻿using Asp.Versioning;
 using AuthService.API.Models;
 using AuthService.Application.Common;
+using AuthService.Application.Dtos.Refresh;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces.Contexts;
 using AuthService.Application.Interfaces.Services;
-using AuthService.Infrastructure.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -32,9 +32,7 @@ namespace AuthService.API.Controllers
             if (!result.Success)
                 return FromServiceResult(result);
 
-            var ipAddress = ClientIpHelper.GetClientIp(HttpContext);
-            var userAgent = Request.Headers["User-Agent"].ToString();
-            var deviceName = DeviceParser.Parse(userAgent);
+            var clientInformations = GetClientInformations();
 
 
             var tokenResult = await _tokenService.CreateTenantUserTokenAsync(new CreateTenantUserTokenRequest
@@ -43,24 +41,24 @@ namespace AuthService.API.Controllers
                 Email = result.Data.Email,
                 TenantId = result.Data.TenantId,
                 TenantDomain = result.Data.TenantDomain,
-                IpAddress = ipAddress,
-                UserAgent = userAgent,
-                DeviceName = deviceName
+                IpAddress = clientInformations.IpAddress,
+                UserAgent = clientInformations.UserAgent,
+                DeviceName = clientInformations.DeviceName
             });
-            
-            if(!tokenResult.Success)
+
+            if (!tokenResult.Success)
                 return FromServiceResult(tokenResult);
 
-            if(_clientContext.ClientType == ClientTypes.Web)
+            if (_clientContext.ClientType == ClientTypes.Web)
             {
-                SetRefreshTokenCookie(tokenResult.Data!.RefreshToken);
-                var tenantResp = new CreateTenantUserTokenResponse()
+                SetRefreshTokenCookie(tokenResult.Data!.RefreshToken!);
+                var tenantResponse = new CreateTenantUserTokenResponse()
                 {
                     Token = tokenResult.Data!.Token,
                 };
-                return Ok(ApiResult<CreateTenantUserTokenResponse>.Ok(tenantResp, tokenResult.Message));
+                return Ok(ApiResult<CreateTenantUserTokenResponse>.Ok(tenantResponse, tokenResult.Message));
             }
-            
+
 
             return FromServiceResult(tokenResult);
 
@@ -71,6 +69,37 @@ namespace AuthService.API.Controllers
         {
             var result = await _userService.CreateTenantUserAsync(request);
             return FromServiceResult(result);
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequest? refreshRequest)
+        {
+            var userInformations = GetClientInformations();
+            string? refreshToken;
+
+            if (_clientContext.ClientType == ClientTypes.Web)
+            {
+                refreshToken = Request.Cookies["refreshToken"];
+            }
+            else
+            {
+                refreshToken = refreshRequest?.RefreshToken;
+            }
+
+            var tokenResult = await _tokenService.RefreshAsync(refreshToken, userInformations);
+            if (!tokenResult.Success) return FromServiceResult(tokenResult);
+
+            if (_clientContext.ClientType == ClientTypes.Web)
+            {
+                SetRefreshTokenCookie(tokenResult.Data!.RefreshToken!);
+                var tenantResponse = new CreateTenantUserTokenResponse()
+                {
+                    Token = tokenResult.Data!.AccessToken!,
+                };
+                return Ok(ApiResult<CreateTenantUserTokenResponse>.Ok(tenantResponse, tokenResult.Message));
+            }
+
+            return FromServiceResult(tokenResult);
         }
     }
 }

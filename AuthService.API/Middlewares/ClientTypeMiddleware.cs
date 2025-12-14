@@ -1,4 +1,7 @@
-﻿namespace AuthService.API.Middlewares
+﻿using AuthService.API.Models;
+using AuthService.Application.Common;
+
+namespace AuthService.API.Middlewares
 {
     public class ClientTypeMiddleware
     {
@@ -9,14 +12,24 @@
         }
         public async Task InvokeAsync(HttpContext context)
         {
-            var clientType = context.Request.Headers["X-Client-Type"].ToString();
+            var clientType = context.Request.Headers[ClientContextKeys.ClientType].ToString().ToLowerInvariant();
+            var deviceId = context.Request.Headers[ClientContextKeys.DeviceId].ToString();
 
             if (string.IsNullOrWhiteSpace(clientType))
-                clientType = "web"; // default
+                clientType = ClientTypes.Web; // default
 
-            context.Items["X-Client-Type"] = clientType;
+            if (clientType != ClientTypes.Web && string.IsNullOrWhiteSpace(deviceId))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync<ApiResult>(ApiResult.Fail("DeviceId is required for this client type.",ErrorCodes.ValidationError));
+                return;
+            }
+
+            context.Items[ClientContextKeys.ClientType] = clientType;
+            context.Items[ClientContextKeys.DeviceId] = string.IsNullOrWhiteSpace(deviceId) ? null : deviceId;
 
             await _next(context);
         }
     }
+
 }

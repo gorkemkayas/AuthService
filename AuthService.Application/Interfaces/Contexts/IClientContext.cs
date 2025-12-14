@@ -3,5 +3,6 @@
     public interface IClientContext
     {
         string ClientType { get; }
+        string? DeviceId { get; }
     }
 }

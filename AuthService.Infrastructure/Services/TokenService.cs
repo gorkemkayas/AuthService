@@ -1,4 +1,5 @@
 ﻿using AuthService.Application.Common;
+using AuthService.Application.Dtos.Refresh;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Contexts;
@@ -7,6 +8,7 @@ using AuthService.Application.Results;
 using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Mapping;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -18,6 +20,7 @@ namespace AuthService.Infrastructure.Services
     public class TokenService : ITokenService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ILogger<TokenService> _logger;
         private readonly IEntityMapper _mapper;
         private readonly IConfiguration _configuration;
         private readonly IClientContext _clientContext;
@@ -25,7 +28,7 @@ namespace AuthService.Infrastructure.Services
         private readonly string _secret;
         private readonly string _issuer;
 
-        public TokenService(IConfiguration _config, IUnitOfWork unitOfWork, IEntityMapper mapper, IClientContext clientContext, IOptions<TokenOptions> options)
+        public TokenService(IConfiguration _config, IUnitOfWork unitOfWork, IEntityMapper mapper, IClientContext clientContext, IOptions<TokenOptions> options, ILogger<TokenService> logger)
         {
             _configuration = _config;
             _secret = _configuration["Jwt:Secret"]!;
@@ -34,6 +37,7 @@ namespace AuthService.Infrastructure.Services
             _mapper = mapper;
             _clientContext = clientContext;
             _tokenOptions = options.Value;
+            _logger = logger;
         }
         public async Task<ServiceResult<CreateTenantUserTokenResponse>> CreateTenantUserTokenAsync(CreateTenantUserTokenRequest request)
         {
@@ -80,6 +84,20 @@ namespace AuthService.Infrastructure.Services
         }
         public IEnumerable<RefreshToken> GetActiveRefreshTokensByUserId(string userId) => _unitOfWork.RefreshTokens.GetActiveRefreshTokensByUserId(userId);
         public async Task<RefreshToken?> GetActiveRefreshTokenByDeviceNameAsync(string userId, string deviceName) => await _unitOfWork.RefreshTokens.GetActiveRefreshTokenByUserDeviceAsync(userId, deviceName);
+        public DateTime GetRefreshTokenExpiryByClient()
+        {
+            return _clientContext.ClientType switch
+            {
+                ClientTypes.Web =>
+                    DateTime.UtcNow.AddDays(_tokenOptions.WebRefreshTokenLifetimeDays),
+
+                ClientTypes.Mobile =>
+                    DateTime.UtcNow.AddDays(_tokenOptions.MobileRefreshTokenLifetimeDays),
+
+                _ =>
+                    DateTime.UtcNow.AddDays(_tokenOptions.RefreshTokenLifetimeDays)
+            };
+        }
         private JwtSecurityToken GetJwtSecurityToken(string issuer, string audience, IEnumerable<Claim> claims, DateTime? expires, SigningCredentials credentials)
         {
             var token = new JwtSecurityToken(
@@ -121,15 +139,25 @@ namespace AuthService.Infrastructure.Services
         {
             var newRefreshToken = GenerateRefreshToken();
 
-            var lastRefreshToken = await _unitOfWork.RefreshTokens
-                .GetLastRefreshTokenByDeviceAsync(request.UserId, request.DeviceName);
+            RefreshToken? lastRefreshToken;
+
+            if (_clientContext.ClientType == ClientTypes.Web)
+                lastRefreshToken = await _unitOfWork.RefreshTokens.GetActiveRefreshTokenByClientTypeAsync(request.UserId, ClientTypes.Web);
+            else
+            {
+                lastRefreshToken = await _unitOfWork.RefreshTokens.GetActiveRefreshTokenByDeviceIdAsync(request.UserId, _clientContext.ClientType, _clientContext.DeviceId!);
+            }
+
 
             if (lastRefreshToken != null)
             {
                 lastRefreshToken.IsRevoked = true;
                 lastRefreshToken.RevokedAt = DateTime.UtcNow;
+                lastRefreshToken.UpdatedAt = DateTime.UtcNow;        ////// domain entitye ClientType ve DeviceId eklenecek, mappingi yapılıp db ye aktarımda proplar güncellenecek.
                 lastRefreshToken.RevokedByIp = request.IpAddress;
                 lastRefreshToken.ReplacedByToken = newRefreshToken;
+                lastRefreshToken.ClientType = _clientContext.ClientType;
+                lastRefreshToken.DeviceId = _clientContext.DeviceId;
 
                 _unitOfWork.RefreshTokens.Update(lastRefreshToken);
             }
@@ -142,26 +170,133 @@ namespace AuthService.Infrastructure.Services
                 Expires = GetRefreshTokenExpiryByClient(),
                 IpAddress = request.IpAddress,
                 DeviceName = request.DeviceName,
-                UserAgent = request.UserAgent
+                UserAgent = request.UserAgent,
+                ClientType = _clientContext.ClientType,
+                DeviceId = _clientContext.DeviceId,
             });
 
             await _unitOfWork.SaveChangesAsync();
 
             return newRefreshToken;
         }
-        public DateTime GetRefreshTokenExpiryByClient()
+
+        public async Task<ServiceResult<RefreshResponse>> RefreshAsync(string? refreshToken, ClientInformations clientInformations)
         {
-            return _clientContext.ClientType switch
+            if (string.IsNullOrEmpty(refreshToken)) return ServiceResult<RefreshResponse>.Fail("Refresh Token Required", ErrorCodes.ValidationError);
+
+            var dbRefreshToken = await _unitOfWork.RefreshTokens.FindByTokenAsync(refreshToken, false);
+
+            if (dbRefreshToken == null) return ServiceResult<RefreshResponse>.Fail("Invalid refresh token.", ErrorCodes.Unauthorized);
+
+            if (!ValidateRefreshToken(dbRefreshToken))
             {
-                ClientTypes.Web =>
-                    DateTime.UtcNow.AddDays(_tokenOptions.WebRefreshTokenLifetimeDays),
+                _logger.LogWarning(
+                    "Suspicious refresh token usage. UserId={UserId}, TokenClientType={TokenClientType}, RequestClientType={RequestClientType}, DeviceId={DeviceId}",
+                    dbRefreshToken.UserId,
+                    dbRefreshToken.ClientType,
+                    _clientContext.ClientType,
+                    _clientContext.DeviceId
+                );
 
-                ClientTypes.Mobile =>
-                    DateTime.UtcNow.AddDays(_tokenOptions.MobileRefreshTokenLifetimeDays),
+                if (_clientContext.ClientType == ClientTypes.Web)
+                {
+                    await RevokeWebRefreshTokensAsync(dbRefreshToken.UserId, clientInformations);
+                }
+                else
+                {
+                    await RevokeDeviceRefreshTokensAsync(dbRefreshToken.UserId, _clientContext.ClientType, _clientContext.DeviceId!, clientInformations);
+                }
+                await _unitOfWork.SaveChangesAsync(); // yapılan revoke'ları kaydediyorum.
 
-                _ =>
-                    DateTime.UtcNow.AddDays(_tokenOptions.RefreshTokenLifetimeDays)
-            };
+                // refreshTokenların hepsini yada cihaza bağlı olan tokenları revoke et.
+                return ServiceResult<RefreshResponse>.Fail("Suspicious login detected!", ErrorCodes.Unauthorized);
+            }
+            if (dbRefreshToken.Expires < DateTime.UtcNow) return ServiceResult<RefreshResponse>.Fail("Refresh Token expired. Please try login", ErrorCodes.Unauthorized);
+
+            var ownerOfRefreshToken = await _unitOfWork.Users.FindAsync(dbRefreshToken.UserId);
+            var tenant = await _unitOfWork.Tenants.GetByIdAsync(ownerOfRefreshToken!.TenantId);
+
+            var newRefreshToken = await RotateRefreshTokenByRefreshTokenAsync(dbRefreshToken, clientInformations);
+            var newAccessToken = GenerateAccessToken(ownerOfRefreshToken.Id, ownerOfRefreshToken.Email, ownerOfRefreshToken.TenantId, tenant!.Domain);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return ServiceResult<RefreshResponse>.Ok(new RefreshResponse() { RefreshToken = newRefreshToken, AccessToken = newAccessToken });
+
+
+        }
+        private bool ValidateRefreshToken(RefreshToken token)
+        {
+            if (token.IsRevoked)
+                return false;
+
+            if (token.ClientType != _clientContext.ClientType)
+                return false;
+
+            if (_clientContext.ClientType == ClientTypes.Web)
+                return true;
+
+            // Mobile / Desktop
+            return !string.IsNullOrEmpty(token.DeviceId)
+                && token.DeviceId == _clientContext.DeviceId;
+        }
+
+        private async Task<string?> RotateRefreshTokenByRefreshTokenAsync(RefreshToken refreshToken, ClientInformations clientInformations)
+        {
+            var newRefreshToken = GenerateRefreshToken();
+
+
+            // revoking old refreshToken
+            refreshToken.ReplacedByToken = newRefreshToken;
+            refreshToken.IsRevoked = true;
+            refreshToken.RevokedAt = DateTime.UtcNow;
+            refreshToken.RevokedByIp = clientInformations.IpAddress;
+            refreshToken.UpdatedAt = DateTime.UtcNow;
+
+            _unitOfWork.RefreshTokens.Update(refreshToken);
+
+            // new refreshToken
+
+            await _unitOfWork.RefreshTokens.AddAsync(new RefreshToken()
+            {
+                IpAddress = clientInformations.IpAddress,
+                Token = newRefreshToken,
+                ClientType = _clientContext.ClientType,
+                DeviceId = _clientContext.DeviceId,
+                CreatedAt = DateTime.UtcNow,
+                DeviceName = clientInformations.DeviceName,
+                UserAgent = clientInformations.UserAgent,
+                Expires = GetRefreshTokenExpiryByClient(),
+                UserId = refreshToken.UserId
+            });
+            return newRefreshToken;
+
+        }
+
+        private async Task RevokeWebRefreshTokensAsync(string userId, ClientInformations clientInformations)
+        {
+            var activeWebToken = await _unitOfWork.RefreshTokens.GetActiveWebRefreshTokenAsync(userId,false);
+            if (activeWebToken == null) return;
+
+            activeWebToken.RevokedAt = DateTime.UtcNow;
+            activeWebToken.UpdatedAt = DateTime.UtcNow;
+            activeWebToken.IsRevoked = true;
+            activeWebToken.RevokedByIp = clientInformations.IpAddress;
+
+            _unitOfWork.RefreshTokens.Update(activeWebToken);
+        }
+        private async Task RevokeDeviceRefreshTokensAsync(string userId, string clientType, string deviceId, ClientInformations clientInformations)
+        {
+            var activeDeviceToken = await _unitOfWork.RefreshTokens.GetActiveDeviceRefreshTokenAsync(userId, clientType, deviceId,false);
+            if (activeDeviceToken == null) return;
+
+            activeDeviceToken.RevokedAt = DateTime.UtcNow;
+            activeDeviceToken.UpdatedAt = DateTime.UtcNow;
+            activeDeviceToken.IsRevoked = true;
+            activeDeviceToken.RevokedByIp = clientInformations.IpAddress;
+
+            _unitOfWork.RefreshTokens.Update(activeDeviceToken);
+
         }
 
 

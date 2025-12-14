@@ -9,16 +9,16 @@ namespace AuthService.Infrastructure.Persistance.Entities
         public DateTime Expires { get; set; }
         public bool IsRevoked { get; set; } = false;
 
-        // new update
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
         public string? DeviceName { get; set; }
 
+        public string ClientType { get; set; } = null!;
+        public string? DeviceId { get; set; }
+
         public DateTime? RevokedAt { get; set; }
         public string? RevokedByIp { get; set; }
         public string? ReplacedByToken { get; set; }
-
-        // new update end.
 
         // IBaseEntity Implementations
         public DateTime CreatedAt { get; set; }

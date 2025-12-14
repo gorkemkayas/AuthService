@@ -2,6 +2,7 @@
 using AuthService.Application.Common;
 using AuthService.Application.Interfaces.Contexts;
 using AuthService.Application.Results;
+using AuthService.Infrastructure.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -68,10 +69,19 @@ namespace AuthService.API.Controllers
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.None,
-                Path = "/api/auth/refresh",
+                Path = "/api",
                 Expires = DateTimeOffset.UtcNow.AddDays(_tokenOptions.WebRefreshTokenLifetimeDays)
             };
             Response.Cookies.Append("refreshToken", refreshToken, options);
+        }
+
+        protected ClientInformations GetClientInformations()
+        {
+            var ipAddress = ClientIpHelper.GetClientIp(HttpContext);
+            var userAgent = Request.Headers["User-Agent"].ToString();
+            var deviceName = DeviceParser.Parse(userAgent);
+
+            return new ClientInformations(ipAddress, userAgent, deviceName);
         }
 
     }
