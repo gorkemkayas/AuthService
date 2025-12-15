@@ -5,8 +5,11 @@ using AuthService.Application.Dtos.Refresh;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces.Contexts;
 using AuthService.Application.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace AuthService.API.Controllers
 {
@@ -43,7 +46,9 @@ namespace AuthService.API.Controllers
                 TenantDomain = result.Data.TenantDomain,
                 IpAddress = clientInformations.IpAddress,
                 UserAgent = clientInformations.UserAgent,
-                DeviceName = clientInformations.DeviceName
+                DeviceName = clientInformations.DeviceName,
+                ClientType = _clientContext.ClientType,
+                DeviceId = _clientContext.DeviceId
             });
 
             if (!tokenResult.Success)
@@ -86,7 +91,7 @@ namespace AuthService.API.Controllers
                 refreshToken = refreshRequest?.RefreshToken;
             }
 
-            var tokenResult = await _tokenService.RefreshAsync(refreshToken, userInformations);
+            var tokenResult = await _tokenService.RefreshAsync(refreshToken, userInformations,_clientContext.ClientType, _clientContext.DeviceId);
             if (!tokenResult.Success) return FromServiceResult(tokenResult);
 
             if (_clientContext.ClientType == ClientTypes.Web)
@@ -100,6 +105,43 @@ namespace AuthService.API.Controllers
             }
 
             return FromServiceResult(tokenResult);
+        }
+
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var authHeader = Request.Headers["Authorization"].ToString();
+
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId2 = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            var clientInfo = GetClientInformations();
+            var auditInfo = new AuditInfo(
+                clientInfo.IpAddress,
+                clientInfo.UserAgent,
+                clientInfo.DeviceName);
+
+            var result = await _userService.LogoutAsync(userId!, auditInfo, _clientContext.ClientType, _clientContext.DeviceId);
+
+            return FromServiceResult(result);
+        }
+
+        [Authorize]
+        [HttpPost("logout/all")]
+        public async Task<IActionResult> LogoutAll()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var clientInfo = GetClientInformations();
+            var auditInfo = new AuditInfo(
+                clientInfo.IpAddress,
+                clientInfo.UserAgent,
+                clientInfo.DeviceName);
+
+            var result = await _userService.LogoutAllDevicesAsync(userId!, auditInfo );
+
+            return FromServiceResult(result);
+            
         }
     }
 }

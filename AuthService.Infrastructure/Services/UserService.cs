@@ -1,13 +1,14 @@
 ﻿using AuthService.Application.Common;
+using AuthService.Application.Dtos.Logout;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
-using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Common;
 using AuthService.Infrastructure.Mapping;
 using AuthService.Infrastructure.Persistance.Entities;
 using Microsoft.AspNetCore.Identity;
+using System.Security;
 
 namespace AuthService.Infrastructure.Services
 {
@@ -15,15 +16,17 @@ namespace AuthService.Infrastructure.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IEntityMapper _entityMapper;
+        private readonly ITokenService _tokenService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
 
-        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IEntityMapper entityMapper)
+        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IEntityMapper entityMapper, ITokenService tokenService)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
             _signInManager = signInManager;
             _entityMapper = entityMapper;
+            _tokenService = tokenService;
         }
         public async Task<ServiceResult<UserDto>> CreateTenantUserAsync(CreateTenantUserRequest request)
         {
@@ -40,7 +43,7 @@ namespace AuthService.Infrastructure.Services
             if (tenant == null)
                 return ServiceResult<UserDto>.Fail("Tenant not found.", ErrorCodes.NotFound);
 
-            var mappedTenant = _entityMapper.MapToData<AuthService.Domain.Entities.Tenant,AuthService.Infrastructure.Persistance.Entities.Tenant>(tenant);
+            var mappedTenant = _entityMapper.MapToData<AuthService.Domain.Entities.Tenant, AuthService.Infrastructure.Persistance.Entities.Tenant>(tenant);
             var newUser = new ApplicationUser
             {
                 UserName = GeneratorHelper.GenerateUsername(request.Name, request.Surname),
@@ -116,8 +119,8 @@ namespace AuthService.Infrastructure.Services
 
             await _unitOfWork.Users.DeleteUserById(id);
             var effectedOnes = await _unitOfWork.SaveChangesAsync();
-          
-            if(effectedOnes == 0)
+
+            if (effectedOnes == 0)
             {
                 return ServiceResult.Fail("Failed to delete user.", ErrorCodes.Unexpected);
             }
@@ -188,7 +191,6 @@ namespace AuthService.Infrastructure.Services
             }
             return ServiceResult.Ok("Password reset successfully.");
         }
-
         public async Task<ServiceResult<LoginUserResponse>> LoginAsync(LoginUserRequest loginUserRequest)
         {
             var user = await _unitOfWork.Users.GetByEmailAsync(loginUserRequest.Email);
@@ -230,6 +232,45 @@ namespace AuthService.Infrastructure.Services
                 TenantId = tenant!.Id,
                 TenantDomain = appUser.Tenant.Domain ?? string.Empty
             }, "Login successful.");
+        }
+
+        public async Task<ServiceResult> LogoutAsync(string userId, AuditInfo auditInfo, string clientType, string? deviceId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new SecurityException("Authenticated user has no userId.");
+
+            if (clientType == ClientTypes.Web)
+            {
+                await _tokenService.RevokeWebRefreshTokensAsync(userId, auditInfo);
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(deviceId))
+                    return ServiceResult.Fail(
+                        "DeviceId is required for device logout",
+                        ErrorCodes.ValidationError);
+
+                var result = await _tokenService.RevokeDeviceRefreshTokensAsync(
+                    userId, clientType, deviceId, auditInfo);
+
+                if (!result.Success)
+                    return result;
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return ServiceResult.Ok("The device has been successfully logged out.");
+        }
+
+        public async Task<ServiceResult> LogoutAllDevicesAsync(string userId, AuditInfo clientInformations)
+        {
+
+            if (userId == null) return ServiceResult<LogoutResponse>.Fail("The login credentials for the user you wanted to log out were unavailable.", ErrorCodes.ValidationError);
+
+            await _tokenService.RevokeAllDevicesAsync(userId, clientInformations.IpAddress);
+            await _unitOfWork.SaveChangesAsync();
+
+            return ServiceResult<LogoutResponse>.Ok("All devices have been logged out.");
         }
     }
 }

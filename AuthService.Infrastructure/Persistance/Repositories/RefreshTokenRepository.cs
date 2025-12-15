@@ -38,10 +38,15 @@ namespace AuthService.Infrastructure.Persistance.Repositories
 
             return _mapper.MapToDomain<AuthService.Domain.Entities.RefreshToken, AuthService.Infrastructure.Persistance.Entities.RefreshToken>(dbRefreshToken);
         }
-        public IEnumerable<AuthService.Domain.Entities.RefreshToken> GetActiveRefreshTokensByUserId(string userId)
+        public IEnumerable<AuthService.Domain.Entities.RefreshToken> GetActiveRefreshTokensByUserId(string userId, bool isTracked = true)
         {
-            var refreshTokens = _context.RefreshTokens
-                .Where(rt => rt.ApplicationUserId == userId && !rt.IsRevoked && !rt.IsDeleted && rt.Expires > DateTime.UtcNow).AsEnumerable();
+            var query = _context.RefreshTokens
+                .Where(rt => rt.ApplicationUserId == userId && !rt.IsRevoked && !rt.IsDeleted && rt.Expires > DateTime.UtcNow);
+            if (!isTracked)
+                query = query.AsNoTracking();
+                
+                
+                var refreshTokens = query.AsEnumerable();
 
             var mappedRefreshTokens = _mapper.MapToDomain<AuthService.Domain.Entities.RefreshToken, AuthService.Infrastructure.Persistance.Entities.RefreshToken>(refreshTokens);
             return mappedRefreshTokens;

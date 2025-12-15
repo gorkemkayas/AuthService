@@ -11,5 +11,8 @@
         public string IpAddress { get; set; } = null!;
         public string UserAgent { get; set; } = null!;
         public string DeviceName { get; set; } = null!;
+
+        public string ClientType { get; set; } = null!;
+        public string? DeviceId { get; set; }
     }
 }

@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using AuthService.Shared.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 
 namespace AuthService.API.Extensions
@@ -8,7 +10,11 @@ namespace AuthService.API.Extensions
     {
         public static IServiceCollection AddAuthConfigurations(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
             .AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -16,13 +22,38 @@ namespace AuthService.API.Extensions
                     ValidateIssuer = true,
                     ValidIssuer = "https://auth.kayas.dev",
                     ValidateAudience = true,
-                    ValidAudience = "https://auth.kayas.dev",
+                    ValidAudiences = new[] {Audiences.AuthService, Audiences.TenantApi},
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Secret"]!)),
+                    NameClaimType = JwtRegisteredClaimNames.Sub,
                     ClockSkew = TimeSpan.Zero
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        Console.WriteLine("JWT AUTH FAILED");
+                        Console.WriteLine(context.Exception.Message);
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        Console.WriteLine("JWT AUTH SUCCESS");
+                        return Task.CompletedTask;
+                    }
+                };
             });
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AuthServiceOnly", policy =>
+                {
+                    policy.RequireAssertion(ctx =>
+                        ctx.User.Claims.Any(c => c.Type == JwtRegisteredClaimNames.Aud && c.Value == Audiences.AuthService));
+                });
+            });
+
 
             return services;
         }

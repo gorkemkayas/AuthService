@@ -75,13 +75,13 @@ namespace AuthService.API.Controllers
             Response.Cookies.Append("refreshToken", refreshToken, options);
         }
 
-        protected ClientInformations GetClientInformations()
+        protected AuditInfo GetClientInformations()
         {
             var ipAddress = ClientIpHelper.GetClientIp(HttpContext);
             var userAgent = Request.Headers["User-Agent"].ToString();
             var deviceName = DeviceParser.Parse(userAgent);
 
-            return new ClientInformations(ipAddress, userAgent, deviceName);
+            return new AuditInfo(ipAddress, userAgent, deviceName);
         }
 
     }

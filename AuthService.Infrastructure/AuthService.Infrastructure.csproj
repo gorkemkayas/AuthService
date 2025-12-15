@@ -30,6 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AuthService.Application\AuthService.Application.csproj" />
     <ProjectReference Include="..\AuthService.Domain\AuthService.Domain.csproj" />
+    <ProjectReference Include="..\AuthService.Shared\AuthService.Shared.csproj" />
   </ItemGroup>
 
 </Project>

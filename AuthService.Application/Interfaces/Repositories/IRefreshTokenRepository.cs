@@ -4,7 +4,7 @@
     {
         Task<bool> DeleteRefreshTokenById(int id);
         Task<AuthService.Domain.Entities.RefreshToken?> FindByTokenAsync(string refreshToken,bool isTracked = true);
-        IEnumerable<AuthService.Domain.Entities.RefreshToken> GetActiveRefreshTokensByUserId(string userId);
+        IEnumerable<AuthService.Domain.Entities.RefreshToken> GetActiveRefreshTokensByUserId(string userId, bool isTracked = true);
         Task<AuthService.Domain.Entities.RefreshToken?> GetActiveRefreshTokenByUserDeviceAsync(string userId, string deviceName);
         Task<AuthService.Domain.Entities.RefreshToken?> GetActiveRefreshTokenByDeviceAsync(string userId, string deviceName);
         Task<AuthService.Domain.Entities.RefreshToken?> GetActiveRefreshTokenByClientTypeAsync(string userId, string clientType);

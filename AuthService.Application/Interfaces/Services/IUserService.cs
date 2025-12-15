@@ -1,4 +1,6 @@
-﻿using AuthService.Application.Dtos.User;
+﻿using AuthService.Application.Common;
+using AuthService.Application.Dtos.Logout;
+using AuthService.Application.Dtos.User;
 using AuthService.Application.Results;
 
 namespace AuthService.Application.Interfaces.Services
@@ -16,5 +18,7 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult<bool>> CheckUserExistsByEmailAsync(string email);
         Task<ServiceResult> ResetUserPasswordAsync(string email, string newPassword);
         Task<ServiceResult<LoginUserResponse>> LoginAsync(LoginUserRequest loginUserRequest);
+        Task<ServiceResult> LogoutAsync(string userId, AuditInfo auditInfo, string clientType, string? deviceId);
+        Task<ServiceResult> LogoutAllDevicesAsync(string userId, AuditInfo auditInfo);
     }
 }
