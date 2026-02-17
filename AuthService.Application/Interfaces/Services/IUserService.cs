@@ -23,5 +23,7 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult> LogoutAllDevicesAsync(string userId, AuditInfo auditInfo);
         Task<ServiceResult<PagedResult<UserDto>>> GetUsersByTenantAsync(int tenantId, int page, int pageSize);
         Task<ServiceResult> AssignRolesToUserAsync(string userId, int tenantId, List<string> roles);
+        Task<ServiceResult> RemoveFromRolesAsync(ServiceResult<UserDto> user, List<string> toRemove);
+        Task<ServiceResult> AddToRolesAsync(ServiceResult<UserDto> user, List<string> toAdd);
     }
 }

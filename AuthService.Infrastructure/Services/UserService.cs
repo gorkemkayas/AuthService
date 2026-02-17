@@ -358,5 +358,38 @@ namespace AuthService.Infrastructure.Services
             return ServiceResult.Ok("User roles updated successfully.");
         }
 
+        public async Task<ServiceResult> RemoveFromRolesAsync(ServiceResult<UserDto> user, List<string> toRemove)
+        {
+            var appUser = await _userManager.FindByIdAsync(user.Data!.Id);
+            if (appUser == null)
+                return ServiceResult<IdentityResult>.Fail("User not found.", ErrorCodes.NotFound);
+            var result = await _userManager.RemoveFromRolesAsync(appUser, toRemove);
+            if (result.Succeeded)
+            {
+                return ServiceResult<IdentityResult>.Ok(result, "Roles removed successfully.");
+            }
+            else
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult<IdentityResult>.Fail($"Failed to remove roles. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+        }
+
+        public async Task<ServiceResult> AddToRolesAsync(ServiceResult<UserDto> user, List<string> toAdd)
+        {
+            var appUser = await _userManager.FindByIdAsync(user.Data!.Id);
+            if (appUser == null)
+                return ServiceResult<IdentityResult>.Fail("User not found.", ErrorCodes.NotFound);
+            var result = await _userManager.AddToRolesAsync(appUser, toAdd);
+            if (result.Succeeded)
+            {
+                return ServiceResult<IdentityResult>.Ok(result, "Roles added successfully.");
+            }
+            else
+            {
+                var errors = result.Errors.Select(e => e.Description).ToArray();
+                return ServiceResult<IdentityResult>.Fail($"Failed to add roles. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+            }
+        }
     }
 }

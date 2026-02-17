@@ -1,4 +1,5 @@
-﻿using AuthService.Application.Results;
+﻿using AuthService.Application.Dtos.Role;
+using AuthService.Application.Results;
 using AuthService.Domain.Entities;
 
 namespace AuthService.Application.Interfaces.Services
@@ -9,6 +10,7 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult> RemoveRoleFromUserAsync(string userId, string roleName);
         Task<ServiceResult<IList<string>>> GetUserRolesAsync(string userId);
         Task<ServiceResult<Role>> CreateRoleAsync(Role role);
+        Task<ServiceResult<IEnumerable<RoleDto>>> GetAllRolesAsync();
     }
 
 }

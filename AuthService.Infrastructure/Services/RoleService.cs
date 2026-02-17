@@ -1,4 +1,5 @@
 ﻿using AuthService.Application.Common;
+using AuthService.Application.Dtos.Role;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
@@ -6,6 +7,8 @@ using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Mapping;
 using AuthService.Infrastructure.Persistance.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 namespace AuthService.Infrastructure.Services
 {
@@ -99,6 +102,22 @@ namespace AuthService.Infrastructure.Services
             var createdRole = _mapper.MapToDomain<Role,ApplicationRole>(applicationRole);
 
             return ServiceResult<Role>.Ok(createdRole, "Role created successfully.");
+        }
+
+        public async Task<ServiceResult<IEnumerable<RoleDto>>> GetAllRolesAsync()
+        {
+            var roles = _roleManager.Roles
+                 .AsNoTracking()
+                 .Where(r => !r.IsDeleted)
+                 .Select(r => new RoleDto
+                 {
+                     Id = r.Id,
+                     Name = r.Name!
+                 })
+                 .OrderBy(r => r.Name)
+                 .ToList();
+            
+            return roles is not null && roles.Any() ? ServiceResult<IEnumerable<RoleDto>>.Ok(roles, "Roles retrieved successfully.") : ServiceResult<IEnumerable<RoleDto>>.Fail("No roles found.", ErrorCodes.NotFound);
         }
     }
 }
