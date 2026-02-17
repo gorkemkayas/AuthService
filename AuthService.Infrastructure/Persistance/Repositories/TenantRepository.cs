@@ -29,6 +29,11 @@ namespace AuthService.Infrastructure.Persistance.Repositories
             tenant.UpdatedAt = DateTime.UtcNow;
             return true;
         }
+        public override async Task AddAsync(Tenant entity, CancellationToken cancellationToken = default)
+        {
+            var mappedTenant = _mapper.MapToData<Domain.Entities.Tenant, Persistance.Entities.Tenant>(entity);
+            await _context.Tenants.AddAsync(mappedTenant, cancellationToken);
+        }
 
     }
 }

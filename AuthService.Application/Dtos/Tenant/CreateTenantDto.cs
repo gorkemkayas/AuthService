@@ -1,4 +1,6 @@
-﻿namespace AuthService.Application.Dtos.Tenant
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace AuthService.Application.Dtos.Tenant
 {
     public class CreateTenantDto
     {

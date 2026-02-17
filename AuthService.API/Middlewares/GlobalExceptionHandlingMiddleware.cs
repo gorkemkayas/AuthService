@@ -1,10 +1,10 @@
 ﻿using AuthService.Application.Interfaces.Services;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace AuthService.API.Middlewares
 {
@@ -27,14 +27,41 @@ namespace AuthService.API.Middlewares
             }
             catch (Exception ex)
             {
-                //using var scope = serviceProvider.CreateScope();
-                //var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
-                //var subject = $"Hata oluştu: {ex.GetType().Name}";
-                //var body = $"<p>Mesaj: {ex.Message}</p><pre>{ex.StackTrace}</pre>";
-                //await emailService.SendEmailAsync("gorkemkayas@hotmail.com", subject, body);
-                _logger.LogError(ex, "Unhandled exception on {Method} {Path}",context.Request.Method, context.Request.Path);
+                using var scope = serviceProvider.CreateScope();
+                var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+
+                var env = scope.ServiceProvider
+                    .GetService<IHostEnvironment>()?.EnvironmentName ?? "Unknown";
+
+                var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+
+                var (controller, action) = GetControllerAction(context);
+                var fileDisplay = GetSourceLocation(ex);
+
+                var time = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
+
+                var subject = "🚨 AuthService | Unhandled Exception";
+
+                var body = BuildHtmlExceptionBody(
+                    ex,
+                    context,
+                    controller,
+                    action,
+                    fileDisplay,
+                    env,
+                    traceId,
+                    time
+                );
+
+                await emailService.SendEmailAsync("gorkemkayas@hotmail.com", subject, body);
+
+                _logger.LogError(ex, "Unhandled exception on {Method} {Path}",
+                    context.Request.Method,
+                    context.Request.Path);
+
                 await HandleExceptionAsync(context, ex);
             }
+
         }
 
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
@@ -98,5 +125,73 @@ namespace AuthService.API.Middlewares
         }
 
         private record ErrorResponse(HttpStatusCode StatusCode, string Message, List<string>? Errors = null);
+        private static (string Controller, string Action) GetControllerAction(HttpContext context)
+        {
+            var endpoint = context.GetEndpoint();
+            if (endpoint == null)
+                return ("Unknown", "Unknown");
+
+            var cad = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>();
+            if (cad == null)
+                return ("Unknown", "Unknown");
+
+            return (cad.ControllerName, cad.ActionName);
+        }
+        private static string GetSourceLocation(Exception ex)
+        {
+            var stack = ex.StackTrace ?? string.Empty;
+
+            var firstRelevant = stack
+                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault(l => l.Contains(" in ") && l.Contains(":line"));
+
+            if (firstRelevant == null)
+                return "Unknown";
+
+            var fileMatch = Regex.Match(
+                firstRelevant,
+                @"in\s+(?<path>.*?):line\s*(?<line>\d+)",
+                RegexOptions.Singleline);
+
+            if (!fileMatch.Success)
+                return "Unknown";
+
+            var path = fileMatch.Groups["path"].Value;
+            var line = fileMatch.Groups["line"].Value;
+
+            var fileName = Path.GetFileName(path);
+            return $"{fileName}:{line}";
+        }
+        private static string BuildHtmlExceptionBody(Exception ex,HttpContext context,string controller,string action,string fileDisplay,string env,string traceId,string time)
+        {
+            return $@"
+<h2 style='color:#b91c1c'>🚨 AUTH SERVICE — UNHANDLED EXCEPTION</h2>
+<hr/>
+
+<h3>📌 Summary</h3>
+<p><b>Message:</b><br/>{WebUtility.HtmlEncode(ex.Message)}</p>
+
+<h3>📍 Location</h3>
+<ul>
+  <li><b>Controller:</b> {controller}</li>
+  <li><b>Action:</b> {action}</li>
+  <li><b>Source:</b> {fileDisplay}</li>
+</ul>
+
+<h3>🌐 Request</h3>
+<ul>
+  <li><b>Method:</b> {context.Request.Method}</li>
+  <li><b>Path:</b> {context.Request.Path}</li>
+</ul>
+
+<h3>🖥 Environment</h3>
+<ul>
+  <li><b>Environment:</b> {env}</li>
+  <li><b>Time (UTC):</b> {time}</li>
+  <li><b>TraceId:</b> {traceId}</li>
+</ul>";
+        }
+
+
     }
 }

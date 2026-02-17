@@ -33,7 +33,6 @@ builder.Services.AddAuthConfigurations(builder.Configuration);
 builder.Services.AddCorsPolicy();
 
 var app = builder.Build();
-app.UseCors("AllowKayasSubdomains");
 
 // Seed Default Tenant
 await app.SeedDefaultTenantAsync();
@@ -41,8 +40,13 @@ await app.SeedDefaultTenantAsync();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseCors("DevCors");
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseCors("ProdCors");
 }
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 app.UseMiddleware<ClientTypeMiddleware>(); // Detecting client type from headers

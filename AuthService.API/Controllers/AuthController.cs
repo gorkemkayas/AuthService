@@ -27,7 +27,6 @@ namespace AuthService.API.Controllers
             _userService = userService;
             _clientContext = clientContext;
         }
-
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginUserRequest loginUserRequest)
         {
@@ -122,7 +121,8 @@ namespace AuthService.API.Controllers
                 clientInfo.UserAgent,
                 clientInfo.DeviceName);
 
-            var result = await _userService.LogoutAsync(userId!, auditInfo, _clientContext.ClientType, _clientContext.DeviceId);
+            var result = await _userService.LogoutAsync(userId!, auditInfo, 
+                _clientContext.ClientType, _clientContext.DeviceId);
 
             return FromServiceResult(result);
         }
@@ -142,6 +142,12 @@ namespace AuthService.API.Controllers
 
             return FromServiceResult(result);
             
+        }
+
+        [HttpPost("exception")]
+        public async Task<IActionResult> Exception()
+        {
+            throw new Exception("This is a test exception.");
         }
     }
 }

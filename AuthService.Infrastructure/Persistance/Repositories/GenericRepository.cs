@@ -84,7 +84,7 @@ namespace AuthService.Infrastructure.Persistance.Repositories
 
         public async Task<TDomain?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default)
         {
-            var entity = await _dbSet.FindAsync(id);
+            var entity = await _dbSet.AsNoTracking().FirstOrDefaultAsync(e => EF.Property<TKey>(e, "Id")!.Equals(id), cancellationToken);
             if (entity == null)
                 return null;
             return _mapper.MapToDomain<TDomain, TData>(entity);

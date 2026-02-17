@@ -61,7 +61,7 @@ namespace AuthService.API.Extensions
         {
             services.AddCors(options =>
             {
-                options.AddPolicy("AllowKayasSubdomains", policy =>
+                options.AddPolicy("ProdCors", policy =>
                 {
                     policy.SetIsOriginAllowed(origin =>
                     {
@@ -73,6 +73,18 @@ namespace AuthService.API.Extensions
                     .AllowCredentials();
                 });
             });
+
+            services.AddCors(options =>
+            {
+                options.AddPolicy("DevCors", policy =>
+                {
+                    policy
+                        .WithOrigins("http://localhost:3000", "https://localhost:3000")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                });
+            });
+
 
             return services;
         }

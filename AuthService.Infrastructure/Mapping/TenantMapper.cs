@@ -15,7 +15,9 @@
                 IsSystem = domainTenant.IsSystem,
                 CreatedAt = domainTenant.CreatedAt,
                 UpdatedAt = domainTenant.UpdatedAt,
-                IsDeleted = domainTenant.IsDeleted
+                IsDeleted = domainTenant.IsDeleted,
+                Email = domainTenant.Email,
+                Domain = domainTenant.Domain
             };
         }
 
@@ -32,7 +34,9 @@
                 IsSystem = dataTenant.IsSystem,
                 CreatedAt = dataTenant.CreatedAt,
                 UpdatedAt = dataTenant.UpdatedAt,
-                IsDeleted = dataTenant.IsDeleted
+                IsDeleted = dataTenant.IsDeleted,
+                Email = dataTenant.Email,
+                Domain = dataTenant.Domain
             };
 
             // Navigation property mapping

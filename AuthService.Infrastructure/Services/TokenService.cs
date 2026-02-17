@@ -1,11 +1,13 @@
 ﻿using AuthService.Application.Common;
 using AuthService.Application.Dtos.Refresh;
+using AuthService.Application.Dtos.RefreshToken;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
 using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Mapping;
+using AuthService.Infrastructure.Persistance.Entities;
 using AuthService.Shared.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -20,6 +22,7 @@ namespace AuthService.Infrastructure.Services
     public class TokenService : ITokenService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IRoleService _roleService;
         private readonly ILogger<TokenService> _logger;
         private readonly IEntityMapper _mapper;
         private readonly IConfiguration _configuration;
@@ -27,7 +30,7 @@ namespace AuthService.Infrastructure.Services
         private readonly string _secret;
         private readonly string _issuer;
 
-        public TokenService(IConfiguration _config, IUnitOfWork unitOfWork, IEntityMapper mapper, IOptions<TokenOptions> options, ILogger<TokenService> logger)
+        public TokenService(IConfiguration _config, IUnitOfWork unitOfWork, IEntityMapper mapper, IOptions<TokenOptions> options, ILogger<TokenService> logger, IRoleService roleService)
         {
             _configuration = _config;
             _secret = _configuration["Jwt:Secret"]!;
@@ -36,6 +39,7 @@ namespace AuthService.Infrastructure.Services
             _mapper = mapper;
             _tokenOptions = options.Value;
             _logger = logger;
+            _roleService = roleService;
         }
         public async Task<ServiceResult<CreateTenantUserTokenResponse>> CreateTenantUserTokenAsync(CreateTenantUserTokenRequest request)
         {
@@ -55,8 +59,13 @@ namespace AuthService.Infrastructure.Services
             {
                 new Claim(JwtRegisteredClaimNames.Sub, adminId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
-                new Claim("role", "admin"),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+
+                new Claim("tenantId", "1"),
+                new Claim("tenantDomain", "auth.kayas.dev"), // Frontend routing için
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+
+                new Claim(ClaimTypes.Role, "SuperAdmin")
             };
 
             var creds = GetSigningCredentials(_secret);
@@ -71,7 +80,7 @@ namespace AuthService.Infrastructure.Services
                 new Claim(JwtRegisteredClaimNames.Sub, userId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim("tenantId", tenantId),
-                new Claim("role", "tenant"),
+                new Claim(ClaimTypes.Role, "Tenant"),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
@@ -80,8 +89,16 @@ namespace AuthService.Infrastructure.Services
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-        public IEnumerable<RefreshToken> GetActiveRefreshTokensByUserId(string userId) => _unitOfWork.RefreshTokens.GetActiveRefreshTokensByUserId(userId);
-        public async Task<RefreshToken?> GetActiveRefreshTokenByDeviceNameAsync(string userId, string deviceName) => await _unitOfWork.RefreshTokens.GetActiveRefreshTokenByUserDeviceAsync(userId, deviceName);
+        public IEnumerable<RefreshTokenDto> GetActiveRefreshTokensByUserId(string userId)
+        {
+            var refreshToken = _unitOfWork.RefreshTokens.GetActiveRefreshTokensByUserId(userId);
+            return _mapper.MapToData<Domain.Entities.RefreshToken, RefreshTokenDto>(refreshToken);
+        }
+        public async Task<RefreshTokenDto?> GetActiveRefreshTokenByDeviceNameAsync(string userId, string deviceName)
+        {
+            var refreshToken = await _unitOfWork.RefreshTokens.GetActiveRefreshTokenByUserDeviceAsync(userId, deviceName);
+            return _mapper.MapToData<Domain.Entities.RefreshToken, RefreshTokenDto>(refreshToken!);
+        }
         public DateTime GetRefreshTokenExpiryByClient(string clientType)
         {
             return clientType switch
@@ -118,14 +135,24 @@ namespace AuthService.Infrastructure.Services
         }
         private string GenerateAccessToken(string userId, string email, int tenantId, string tenantDomain)
         {
-            var claims = new[]
+            var user = _unitOfWork.Users.FindAsync(userId).Result;
+            var userRoles = _roleService.GetUserRolesAsync(userId).Result.Data ?? new List<string>();
+            var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, userId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim("tenantId", tenantId.ToString()),
-                new Claim("role", "tenantUser"),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim("tenantDomain", tenantDomain), // Frontend routing için
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                // E-Commerce için ekstra:
+                new Claim("name", $"{user.FullName}"), // Kullanıcı adı gösterimi için
             };
+
+            // Rol bazlı claims ekle (admin, customer, seller, vb.)
+            foreach (var role in userRoles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
 
             var creds = GetSigningCredentials(_secret);
 
@@ -137,7 +164,7 @@ namespace AuthService.Infrastructure.Services
         {
             var newRefreshToken = GenerateRefreshToken();
 
-            RefreshToken? lastRefreshToken;
+            Domain.Entities.RefreshToken? lastRefreshToken;
 
             if (request.ClientType == ClientTypes.Web)
                 lastRefreshToken = await _unitOfWork.RefreshTokens.GetActiveRefreshTokenByClientTypeAsync(request.UserId, ClientTypes.Web);
@@ -223,7 +250,7 @@ namespace AuthService.Infrastructure.Services
 
 
         }
-        private bool ValidateRefreshToken(RefreshToken token, string clientType, string? deviceId)
+        private bool ValidateRefreshToken(Domain.Entities.RefreshToken token, string clientType, string? deviceId)
         {
             if (token.IsRevoked)
                 return false;
@@ -239,7 +266,7 @@ namespace AuthService.Infrastructure.Services
                 && token.DeviceId == deviceId;
         }
 
-        private async Task<string?> RotateRefreshTokenByRefreshTokenAsync(RefreshToken refreshToken, AuditInfo clientInformations, string clientType, string? deviceId)
+        private async Task<string?> RotateRefreshTokenByRefreshTokenAsync(Domain.Entities.RefreshToken refreshToken, AuditInfo clientInformations, string clientType, string? deviceId)
         {
             var newRefreshToken = GenerateRefreshToken();
 
@@ -255,7 +282,7 @@ namespace AuthService.Infrastructure.Services
 
             // new refreshToken
 
-            await _unitOfWork.RefreshTokens.AddAsync(new RefreshToken()
+            await _unitOfWork.RefreshTokens.AddAsync(new ()
             {
                 IpAddress = clientInformations.IpAddress,
                 Token = newRefreshToken,
@@ -305,7 +332,7 @@ namespace AuthService.Infrastructure.Services
         }
         public async Task RevokeAllDevicesAsync(string userId, string clientIp)
         {
-            var allRefreshTokens = _unitOfWork.RefreshTokens.GetActiveRefreshTokensByUserId(userId,false);
+            var allRefreshTokens = _unitOfWork.RefreshTokens.GetActiveRefreshTokensByUserId(userId, false);
             foreach (var refreshToken in allRefreshTokens)
             {
                 refreshToken.IsRevoked = true;

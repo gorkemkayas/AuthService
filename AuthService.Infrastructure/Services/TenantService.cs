@@ -56,8 +56,8 @@ public class TenantService : ITenantService
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            Email = GeneratorHelper.GenerateFirmMail(createTenantDto.Name),
-            Domain = GeneratorHelper.IsDomainAvailable(createTenantDto.Domain, existingDomains) ? GeneratorHelper.GetDomainAddress(createTenantDto.Domain) : GeneratorHelper.GetDomainAddress(GeneratorHelper.GenerateDomain(createTenantDto.Domain, existingDomains))
+            Email = GenerateTenantEmailFromDomain(createTenantDto.Domain),
+            Domain = createTenantDto.Domain
         };
         await _unitOfWork.Tenants.AddAsync(newTenant);
         await _unitOfWork.SaveChangesAsync();
@@ -78,7 +78,7 @@ public class TenantService : ITenantService
             return ServiceResult.Fail("Tenant does not exist.");
         if (tenant.IsDeleted)
             return ServiceResult.Fail("Tenant is already inactive.");
-        tenant.IsDeleted = false;
+        tenant.IsDeleted = true;
         tenant.IsActive = false;
         tenant.UpdatedAt = DateTime.UtcNow;
 
@@ -95,6 +95,7 @@ public class TenantService : ITenantService
         if (tenant.IsActive)
             return ServiceResult.Fail("Tenant is already active.");
         tenant.IsActive = true;
+        tenant.IsDeleted = false;
         tenant.UpdatedAt = DateTime.UtcNow;
         _unitOfWork.Tenants.Update(tenant);
         await _unitOfWork.SaveChangesAsync();
@@ -254,4 +255,20 @@ public class TenantService : ITenantService
         bool canBeRenamed = existingTenant is null || existingTenant.Id == tenantId;
         return ServiceResult<bool>.Ok(canBeRenamed);
     }
+    public static string GenerateTenantEmailFromDomain(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain))
+            throw new ArgumentException("Domain cannot be empty", nameof(domain));
+
+        var parts = domain.Split('.', StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length < 3)
+            throw new ArgumentException("Domain must be in format subdomain.domain.tld (e.g. cengiztech.kayas.dev)");
+
+        var subdomain = parts[0];
+        var baseDomain = string.Join('.', parts.Skip(1));
+
+        return $"{subdomain}@{baseDomain}";
+    }
+
 }

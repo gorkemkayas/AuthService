@@ -2,6 +2,7 @@
 using AuthService.Application.Dtos.Logout;
 using AuthService.Application.Dtos.User;
 using AuthService.Application.Results;
+using AuthService.Domain.Entities;
 
 namespace AuthService.Application.Interfaces.Services
 {
@@ -20,5 +21,7 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult<LoginUserResponse>> LoginAsync(LoginUserRequest loginUserRequest);
         Task<ServiceResult> LogoutAsync(string userId, AuditInfo auditInfo, string clientType, string? deviceId);
         Task<ServiceResult> LogoutAllDevicesAsync(string userId, AuditInfo auditInfo);
+        Task<ServiceResult<PagedResult<UserDto>>> GetUsersByTenantAsync(int tenantId, int page, int pageSize);
+        Task<ServiceResult> AssignRolesToUserAsync(string userId, int tenantId, List<string> roles);
     }
 }

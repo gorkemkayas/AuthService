@@ -19,14 +19,16 @@ namespace AuthService.Infrastructure.Services
         private readonly ITokenService _tokenService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly RoleManager<ApplicationRole> _roleManager;
 
-        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IEntityMapper entityMapper, ITokenService tokenService)
+        public UserService(IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IEntityMapper entityMapper, ITokenService tokenService, RoleManager<ApplicationRole> roleManager)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
             _signInManager = signInManager;
             _entityMapper = entityMapper;
             _tokenService = tokenService;
+            _roleManager = roleManager;
         }
         public async Task<ServiceResult<UserDto>> CreateTenantUserAsync(CreateTenantUserRequest request)
         {
@@ -272,5 +274,89 @@ namespace AuthService.Infrastructure.Services
 
             return ServiceResult<LogoutResponse>.Ok("All devices have been logged out.");
         }
+
+        public async Task<ServiceResult<PagedResult<UserDto>>> GetUsersByTenantAsync(int tenantId, int page, int pageSize)
+        {
+            var pagedUsers = await _unitOfWork.Users.GetUsersByTenantAsync(tenantId, page, pageSize); // PagedResult<User>
+
+            var dtoItems = pagedUsers.Items
+                .Select(u => new UserDto
+                {
+                    Id = u.Id,
+                    Name = u.Name,
+                    Surname = u.Surname,
+                    Email = u.Email,
+                    TenantId = u.TenantId,
+                    CreatedAt = u.CreatedAt
+                })
+                .ToList();
+
+            var resultPaged = new PagedResult<UserDto>
+            {
+                Items = dtoItems,
+                Page = pagedUsers.Page,
+                PageSize = pagedUsers.PageSize,
+                TotalCount = pagedUsers.TotalCount
+            };
+
+            return ServiceResult<PagedResult<UserDto>>.Ok(resultPaged, "Users retrieved successfully.");
+        }
+
+        public async Task<ServiceResult> AssignRolesToUserAsync(string userId, int tenantId, List<string> roles)
+        {
+            // ✅ Rollerin varlığını kontrol et
+            foreach (var roleName in roles)
+            {
+                if (!await _roleManager.RoleExistsAsync(roleName))
+                {
+                    return ServiceResult.Fail($"Role '{roleName}' does not exist.", ErrorCodes.ValidationError);
+                }
+            }
+
+            var user = await _unitOfWork.Users.GetByIdAsync(userId);
+            if (user is null)
+                return ServiceResult.Fail("User not found.", ErrorCodes.NotFound);
+
+            // ✅ TenantId doğrulaması ekle
+            if (user.TenantId != tenantId)
+                return ServiceResult.Fail("User does not belong to this tenant.", ErrorCodes.Forbidden);
+
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+            var currentRoles = await _userManager.GetRolesAsync(appUser!);
+            var rolesToAdd = roles.Except(currentRoles).ToList();
+            var rolesToRemove = currentRoles.Except(roles).ToList();
+
+            var changed = false;
+
+            if (rolesToAdd.Any())
+            {
+                var addResult = await _userManager.AddToRolesAsync(appUser!, rolesToAdd);
+                if (!addResult.Succeeded)
+                {
+                    var errors = addResult.Errors.Select(e => e.Description).ToArray();
+                    return ServiceResult.Fail($"Failed to add roles. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+                }
+                changed = true;
+            }
+            if (rolesToRemove.Any())
+            {
+                var removeResult = await _userManager.RemoveFromRolesAsync(appUser!, rolesToRemove);
+                if (!removeResult.Succeeded)
+                {
+                    var errors = removeResult.Errors.Select(e => e.Description).ToArray();
+                    return ServiceResult.Fail($"Failed to remove roles. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+                }
+                changed = true;
+            }
+
+            // ✅ Değişiklik varsa kaydet
+            if (changed)
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            return ServiceResult.Ok("User roles updated successfully.");
+        }
+
     }
 }
