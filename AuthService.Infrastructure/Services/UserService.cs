@@ -235,6 +235,50 @@ namespace AuthService.Infrastructure.Services
                 TenantDomain = appUser.Tenant.Domain ?? string.Empty
             }, "Login successful.");
         }
+        public async Task<ServiceResult<LoginUserResponse>> LoginAsSystemAdminAsync(LoginUserRequest loginUserRequest)
+        {
+            var user = await _unitOfWork.Users.GetByEmailAsync(loginUserRequest.Email);
+            if (user is null)
+                return ServiceResult<LoginUserResponse>.Fail("User not found.", ErrorCodes.NotFound);
+
+            var appUser = await _userManager.FindByIdAsync(user.Id);
+
+            if (await _userManager.IsLockedOutAsync(appUser!))
+            {
+                var lockoutEnd = await _userManager.GetLockoutEndDateAsync(appUser!);
+                var minutesLeft = (lockoutEnd!.Value - DateTimeOffset.UtcNow).TotalMinutes;
+                return ServiceResult<LoginUserResponse>.Fail(
+                    $"Account is locked. Try again in {Math.Ceiling(minutesLeft)} minutes.",
+                    ErrorCodes.Unauthorized
+                );
+            }
+            var passwordValid = await _userManager.CheckPasswordAsync(appUser!, loginUserRequest.Password);
+            if (!passwordValid)
+            {
+                await _userManager.AccessFailedAsync(appUser!);  // lockout sayaç artır
+                var accessFailedCount = await _userManager.GetAccessFailedCountAsync(appUser!);
+                var max = _userManager.Options.Lockout.MaxFailedAccessAttempts;
+
+                return ServiceResult<LoginUserResponse>.Fail(
+                    $"Invalid password. {max - accessFailedCount} attempts remaining before lockout.",
+                    ErrorCodes.Unauthorized
+                );
+            }
+
+            if(!await _userManager.IsInRoleAsync(appUser!, SystemRoles.SuperAdmin))
+            {
+                return ServiceResult<LoginUserResponse>.Fail("Unauthorized. User is not a system administrator.", ErrorCodes.Unauthorized);
+            }
+            await _userManager.ResetAccessFailedCountAsync(appUser!);
+
+            return ServiceResult<LoginUserResponse>.Ok(new LoginUserResponse
+            {
+                UserId = appUser!.Id,
+                Email = appUser.Email!,
+                TenantId = SystemConstants.SystemTenantId,
+                TenantDomain = SystemConstants.SystemTenantDomain
+            }, "Login successful.");
+        }
 
         public async Task<ServiceResult> LogoutAsync(string userId, AuditInfo auditInfo, string clientType, string? deviceId)
         {

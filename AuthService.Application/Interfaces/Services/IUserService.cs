@@ -19,6 +19,7 @@ namespace AuthService.Application.Interfaces.Services
         Task<ServiceResult<bool>> CheckUserExistsByEmailAsync(string email);
         Task<ServiceResult> ResetUserPasswordAsync(string email, string newPassword);
         Task<ServiceResult<LoginUserResponse>> LoginAsync(LoginUserRequest loginUserRequest);
+        Task<ServiceResult<LoginUserResponse>> LoginAsSystemAdminAsync(LoginUserRequest loginUserRequest);
         Task<ServiceResult> LogoutAsync(string userId, AuditInfo auditInfo, string clientType, string? deviceId);
         Task<ServiceResult> LogoutAllDevicesAsync(string userId, AuditInfo auditInfo);
         Task<ServiceResult<PagedResult<UserDto>>> GetUsersByTenantAsync(int tenantId, int page, int pageSize);

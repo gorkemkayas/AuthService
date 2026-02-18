@@ -13,6 +13,7 @@ namespace AuthService.Application.Interfaces.Services
         string CreateAdminToken(string adminId, string email);
         string CreateTenantToken(string userId, string email, string tenantId, string tenantDomain);
         Task<ServiceResult<CreateTenantUserTokenResponse>> CreateTenantUserTokenAsync(CreateTenantUserTokenRequest request);
+        Task<ServiceResult<CreateAdminUserTokenResponse>> CreateAdminUserTokenAsync(CreateAdminUserTokenRequest request);
         IEnumerable<RefreshTokenDto> GetActiveRefreshTokensByUserId(string userId);
         Task<RefreshTokenDto?> GetActiveRefreshTokenByDeviceNameAsync(string userId, string deviceName);
         Task<ServiceResult<RefreshResponse>> RefreshAsync(string? refreshToken, AuditInfo clientInformations, string clientType, string? deviceId);

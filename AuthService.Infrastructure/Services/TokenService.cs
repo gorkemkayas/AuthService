@@ -19,7 +19,7 @@ using System.Text;
 
 namespace AuthService.Infrastructure.Services
 {
-    public class TokenService : ITokenService
+    public partial class TokenService : ITokenService
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IRoleService _roleService;
@@ -52,6 +52,17 @@ namespace AuthService.Infrastructure.Services
                 RefreshToken = refreshToken
             });
         }
+        public async Task<ServiceResult<CreateAdminUserTokenResponse>> CreateAdminUserTokenAsync(CreateAdminUserTokenRequest request)
+        {
+            var token = CreateAdminToken(request.UserId, request.Email);
+            var refreshToken = await RotateRefreshTokenAsync(request);
+
+            return ServiceResult<CreateAdminUserTokenResponse>.Ok(new CreateAdminUserTokenResponse
+            {
+                Token = token,
+                RefreshToken = refreshToken
+            });
+        }
 
         public string CreateAdminToken(string adminId, string email)
         {
@@ -60,12 +71,11 @@ namespace AuthService.Infrastructure.Services
                 new Claim(JwtRegisteredClaimNames.Sub, adminId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-
-                new Claim("tenantId", "1"),
-                new Claim("tenantDomain", "auth.kayas.dev"), // Frontend routing için
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-
-                new Claim(ClaimTypes.Role, "SuperAdmin")
+                new Claim("tenantId", SystemConstants.SystemTenantId.ToString()),
+                new Claim("tenantDomain", SystemConstants.SystemTenantDomain),
+                new Claim(ClaimTypes.Role, "SuperAdmin"),
+                new Claim(CustomClaimTypes.TokenType,CustomAudiences.System),
+                new Claim(JwtRegisteredClaimNames.Aud, "system-ui")
             };
 
             var creds = GetSigningCredentials(_secret);
@@ -145,7 +155,10 @@ namespace AuthService.Infrastructure.Services
                 new Claim("tenantDomain", tenantDomain), // Frontend routing için
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 // E-Commerce için ekstra:
-                new Claim("name", $"{user.FullName}"), // Kullanıcı adı gösterimi için
+                new Claim("name", $"{user!.FullName}"), // Kullanıcı adı gösterimi için
+                new Claim(CustomClaimTypes.TokenType, CustomAudiences.Tenant),
+                new Claim(JwtRegisteredClaimNames.Aud, "tenant-ui")
+
             };
 
             // Rol bazlı claims ekle (admin, customer, seller, vb.)
@@ -160,7 +173,7 @@ namespace AuthService.Infrastructure.Services
 
             return new JwtSecurityTokenHandler().WriteToken(jwtToken);
         }
-        private async Task<string> RotateRefreshTokenAsync(CreateTenantUserTokenRequest request)
+        private async Task<string> RotateRefreshTokenAsync(CreateTokenRequest request)
         {
             var newRefreshToken = GenerateRefreshToken();
 
@@ -239,10 +252,22 @@ namespace AuthService.Infrastructure.Services
             if (dbRefreshToken.Expires < DateTime.UtcNow) return ServiceResult<RefreshResponse>.Fail("Refresh Token expired. Please try login", ErrorCodes.Unauthorized);
 
             var ownerOfRefreshToken = await _unitOfWork.Users.FindAsync(dbRefreshToken.UserId);
-            var tenant = await _unitOfWork.Tenants.GetByIdAsync(ownerOfRefreshToken!.TenantId);
 
             var newRefreshToken = await RotateRefreshTokenByRefreshTokenAsync(dbRefreshToken, clientInformations, clientType, deviceId);
-            var newAccessToken = GenerateAccessToken(ownerOfRefreshToken.Id, ownerOfRefreshToken.Email, ownerOfRefreshToken.TenantId, tenant!.Domain);
+
+            string newAccessToken;
+            if (ownerOfRefreshToken!.TenantId == SystemConstants.SystemTenantId) // System Admin
+            {
+                newAccessToken = CreateAdminToken(ownerOfRefreshToken.Id, ownerOfRefreshToken.Email);
+            }
+            else // Tenant User
+            {
+                var tenant = await _unitOfWork.Tenants.GetByIdAsync(ownerOfRefreshToken.TenantId);
+                if (tenant == null)
+                    return ServiceResult<RefreshResponse>.Fail("Tenant not found.", ErrorCodes.NotFound);
+
+                newAccessToken = GenerateAccessToken(ownerOfRefreshToken.Id, ownerOfRefreshToken.Email, ownerOfRefreshToken.TenantId, tenant.Domain);
+            }
 
             await _unitOfWork.SaveChangesAsync();
 
@@ -282,7 +307,7 @@ namespace AuthService.Infrastructure.Services
 
             // new refreshToken
 
-            await _unitOfWork.RefreshTokens.AddAsync(new ()
+            await _unitOfWork.RefreshTokens.AddAsync(new()
             {
                 IpAddress = clientInformations.IpAddress,
                 Token = newRefreshToken,

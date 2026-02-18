@@ -12,7 +12,7 @@ namespace AuthService.API.Controllers.Admin
     [ApiController]
     [ApiVersion("1.0")]
     [Route("/api/v{version:apiVersion}/admin/tenants/{tenantId:int}/[controller]")]
-    [Authorize(Roles = "SuperAdmin,TenantAdmin")]
+    [Authorize(Policy = "SystemAdmin")] // Sadece token_type="system" ve SuperAdmin rolü
     public class UsersController : BaseController
     {
         private readonly IUserService _userService;

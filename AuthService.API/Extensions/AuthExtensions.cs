@@ -52,8 +52,16 @@ namespace AuthService.API.Extensions
                     policy.RequireAssertion(ctx =>
                         ctx.User.Claims.Any(c => c.Type == JwtRegisteredClaimNames.Aud && c.Value == Audiences.AuthService));
                 });
+
+                // SystemAdmin Policy: token_type = "system" AND role = "SuperAdmin"
+                options.AddPolicy("SystemAdmin", policy =>
+                {
+                    policy.Requirements.Add(new Authorization.SystemAdminRequirement());
+                });
             });
 
+            // SystemAdmin policy handler'ını register et
+            services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, Authorization.SystemAdminAuthorizationHandler>();
 
             return services;
         }
