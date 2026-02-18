@@ -89,7 +89,8 @@ namespace AuthService.API.Extensions
                     policy
                         .WithOrigins("http://localhost:3000", "https://localhost:3000")
                         .AllowAnyHeader()
-                        .AllowAnyMethod();
+                        .AllowAnyMethod()
+                        .AllowCredentials();
                 });
             });
 
