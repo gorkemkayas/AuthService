@@ -56,8 +56,7 @@ public class TenantService : ITenantService
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            Email = GenerateTenantEmailFromDomain(createTenantDto.Domain),
-            Domain = createTenantDto.Domain
+            Email = GenerateTenantEmailFromName(createTenantDto.Name), // Domain yerine Name kullan
         };
         await _unitOfWork.Tenants.AddAsync(newTenant);
         await _unitOfWork.SaveChangesAsync();
@@ -269,6 +268,28 @@ public class TenantService : ITenantService
         var baseDomain = string.Join('.', parts.Skip(1));
 
         return $"{subdomain}@{baseDomain}";
+    }
+    public static string GenerateTenantEmailFromName(string tenantName)
+    {
+        if (string.IsNullOrWhiteSpace(tenantName))
+            throw new ArgumentException("Tenant name cannot be empty", nameof(tenantName));
+
+        // Tenant name'i email-friendly formata çevir:
+        // - Küçük harfe çevir
+        // - Boşlukları ve özel karakterleri kaldır/normalize et
+        var emailPrefix = tenantName
+            .ToLowerInvariant()
+            .Replace(" ", "")
+            .Replace("-", "")
+            .Replace("_", "");
+
+        // Sadece alfanumerik karakterleri tut
+        emailPrefix = new string(emailPrefix.Where(char.IsLetterOrDigit).ToArray());
+
+        if (string.IsNullOrWhiteSpace(emailPrefix))
+            throw new ArgumentException("Tenant name must contain at least one alphanumeric character", nameof(tenantName));
+
+        return $"{emailPrefix}@kayas.dev";
     }
 
 }

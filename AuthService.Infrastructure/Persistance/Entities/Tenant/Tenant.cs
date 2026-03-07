@@ -6,7 +6,7 @@ namespace AuthService.Infrastructure.Persistance.Entities
     {
         public int Id { get; set; }
         public string Name { get; set; } = null!;
-        public string Domain { get; set; } = null!;
+        public string? Domain { get; set; }
         public bool IsActive { get; set; } = true;
         public bool IsSystem { get; set; } = false;
 
