@@ -62,7 +62,7 @@ public class TenantService : ITenantService
         await _unitOfWork.SaveChangesAsync();
         var tenantDto = new TenantDto
         {
-            Id = newTenant.Id,
+            Id = (await _unitOfWork.Tenants.GetByNameAsync(newTenant.Name))!.Id,
             Name = newTenant.Name,
             IsActive = newTenant.IsActive,
             CreatedAt = newTenant.CreatedAt,

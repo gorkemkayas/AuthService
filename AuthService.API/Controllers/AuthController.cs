@@ -42,7 +42,6 @@ namespace AuthService.API.Controllers
                 UserId = result.Data!.UserId,
                 Email = result.Data.Email,
                 TenantId = result.Data.TenantId,
-                TenantDomain = result.Data.TenantDomain,
                 IpAddress = clientInformations.IpAddress,
                 UserAgent = clientInformations.UserAgent,
                 DeviceName = clientInformations.DeviceName,

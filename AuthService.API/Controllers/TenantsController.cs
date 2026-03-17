@@ -15,9 +15,11 @@ namespace AuthService.API.Controllers.Admin
     public class TenantsController : BaseController
     {
         private readonly ITenantService _tenantService;
-        public TenantsController(ITenantService tenantService, IOptions<TokenOptions> tokenOptions) : base(tokenOptions)
+        private readonly IStoreProvisioningService _storeProvisioningService;
+        public TenantsController(ITenantService tenantService, IOptions<TokenOptions> tokenOptions, IStoreProvisioningService storeProvisioningService) : base(tokenOptions)
         {
             _tenantService = tenantService;
+            _storeProvisioningService = storeProvisioningService;
         }
 
         [HttpGet]
@@ -38,7 +40,14 @@ namespace AuthService.API.Controllers.Admin
         public async Task<IActionResult> Create([FromBody] CreateTenantDto dto)
         {
             var result = await _tenantService.CreateNewTenantAsync(dto);
-            return result.Success ? CreatedAtAction(nameof(Get), new { id = result.Data!.Id }, result) : BadRequest(result);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            // Store provisioning çağrısı (MVP)
+            await _storeProvisioningService.ProvisionStoreAsync(result.Data!.Id,dto.Name);
+
+            return CreatedAtAction(nameof(Get), new { id = result.Data!.Id }, result);
         }
 
         [HttpPost("{id:int}/enable")]

@@ -43,7 +43,7 @@ namespace AuthService.Infrastructure.Services
         }
         public async Task<ServiceResult<CreateTenantUserTokenResponse>> CreateTenantUserTokenAsync(CreateTenantUserTokenRequest request)
         {
-            var token = GenerateAccessToken(request.UserId, request.Email, request.TenantId, request.TenantDomain);
+            var token = GenerateAccessToken(request.UserId, request.Email, request.TenantId);
             var refreshToken = await RotateRefreshTokenAsync(request);
 
             return ServiceResult<CreateTenantUserTokenResponse>.Ok(new CreateTenantUserTokenResponse
@@ -72,7 +72,7 @@ namespace AuthService.Infrastructure.Services
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim("tenantId", SystemConstants.SystemTenantId.ToString()),
-                new Claim("tenantDomain", SystemConstants.SystemTenantDomain),
+                //new Claim("tenantDomain", SystemConstants.SystemTenantDomain),
                 new Claim(ClaimTypes.Role, "SuperAdmin"),
                 new Claim(CustomClaimTypes.TokenType,CustomAudiences.System),
                 new Claim(JwtRegisteredClaimNames.Aud, "system-ui")
@@ -143,7 +143,7 @@ namespace AuthService.Infrastructure.Services
         {
             return Guid.NewGuid().ToString();
         }
-        private string GenerateAccessToken(string userId, string email, int tenantId, string tenantDomain)
+        private string GenerateAccessToken(string userId, string email, int tenantId)
         {
             var user = _unitOfWork.Users.FindAsync(userId).Result;
             var userRoles = _roleService.GetUserRolesAsync(userId).Result.Data ?? new List<string>();
@@ -152,7 +152,7 @@ namespace AuthService.Infrastructure.Services
                 new Claim(JwtRegisteredClaimNames.Sub, userId),
                 new Claim(JwtRegisteredClaimNames.Email, email),
                 new Claim("tenantId", tenantId.ToString()),
-                new Claim("tenantDomain", tenantDomain), // Frontend routing için
+                // new Claim("tenantDomain", tenantDomain), // Frontend routing için
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 // E-Commerce için ekstra:
                 new Claim("name", $"{user!.FullName}"), // Kullanıcı adı gösterimi için
@@ -266,7 +266,7 @@ namespace AuthService.Infrastructure.Services
                 if (tenant == null)
                     return ServiceResult<RefreshResponse>.Fail("Tenant not found.", ErrorCodes.NotFound);
 
-                newAccessToken = GenerateAccessToken(ownerOfRefreshToken.Id, ownerOfRefreshToken.Email, ownerOfRefreshToken.TenantId, tenant.Domain);
+                newAccessToken = GenerateAccessToken(ownerOfRefreshToken.Id, ownerOfRefreshToken.Email, ownerOfRefreshToken.TenantId);
             }
 
             await _unitOfWork.SaveChangesAsync();

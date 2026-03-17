@@ -7,7 +7,7 @@ namespace AuthService.Application.Dtos.User
         public string UserId { get; set; }
         public string Email { get; set; }
         public int TenantId { get; set; }
-        public string TenantDomain { get; set; }
+        // public string TenantDomain { get; set; }
         // tracking için eklendi.
         public string IpAddress { get; set; }
         public string UserAgent { get; set; }
@@ -20,7 +20,7 @@ namespace AuthService.Application.Dtos.User
         public string UserId { get; set; } = null!;
         public string Email { get; set; } = null!;
         public int TenantId { get; set; }
-        public string TenantDomain { get; set; } = null!;
+        // public string TenantDomain { get; set; } = null!;
 
         // tracking için eklendi.
         public string IpAddress { get; set; } = null!;

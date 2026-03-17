@@ -14,6 +14,7 @@ namespace AuthService.Infrastructure.Extensions
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<ITenantService, TenantService>();
             services.AddScoped<IEmailService, EmailService>();
+            services.AddHttpClient<IStoreProvisioningService, HttpStoreProvisioningService>();
             return services;
         }
     }
