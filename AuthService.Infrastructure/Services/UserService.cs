@@ -30,20 +30,20 @@ namespace AuthService.Infrastructure.Services
             _tokenService = tokenService;
             _roleManager = roleManager;
         }
-        public async Task<ServiceResult<UserDto>> CreateTenantUserAsync(CreateTenantUserRequest request)
+        public async Task<ServiceResult<CreateTenantUserResponse>> CreateTenantUserAsync(CreateTenantUserRequest request)
         {
             var userExists = await _unitOfWork.Users.GetByEmailAsync(request.Email);
             if (userExists is not null)
             {
-                return ServiceResult<UserDto>.Fail("User with the given email already exists.", ErrorCodes.AlreadyExists);
+                return ServiceResult<CreateTenantUserResponse>.Fail("User with the given email already exists.", ErrorCodes.AlreadyExists);
             }
             var isTenantExists = await _unitOfWork.Tenants.ExistsAsync(request.TenantId);
             if (!isTenantExists)
-                return ServiceResult<UserDto>.Fail("Tenant not found.", ErrorCodes.NotFound);
+                return ServiceResult<CreateTenantUserResponse>.Fail("Tenant not found.", ErrorCodes.NotFound);
 
             var tenant = await _unitOfWork.Tenants.GetByIdAsync(request.TenantId);
             if (tenant == null)
-                return ServiceResult<UserDto>.Fail("Tenant not found.", ErrorCodes.NotFound);
+                return ServiceResult<CreateTenantUserResponse>.Fail("Tenant not found.", ErrorCodes.NotFound);
 
             var mappedTenant = _entityMapper.MapToData<AuthService.Domain.Entities.Tenant, AuthService.Infrastructure.Persistance.Entities.Tenant>(tenant);
             var newUser = new ApplicationUser
@@ -61,19 +61,22 @@ namespace AuthService.Infrastructure.Services
             if (createdUser is null || !createdUser.Succeeded)
             {
                 var errors = createdUser?.Errors.Select(e => e.Description).ToArray() ?? Array.Empty<string>();
-                return ServiceResult<UserDto>.Fail($"Failed to create user. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
+                return ServiceResult<CreateTenantUserResponse>.Fail($"Failed to create user. {string.Join(", ", errors)}", ErrorCodes.Unexpected);
 
             }
-            var userDto = new UserDto
+
+            if (!Guid.TryParse(newUser.Id, out var externalUserId))
             {
-                Id = newUser.Id,
-                Name = newUser.Name,
-                Surname = newUser.Surname,
-                Email = newUser.Email,
-                TenantId = newUser.TenantId,
-                CreatedAt = newUser.CreatedAt
+                await _userManager.DeleteAsync(newUser);
+                return ServiceResult<CreateTenantUserResponse>.Fail("Failed to create tenant user response because the user id is not a valid GUID.", ErrorCodes.Unexpected);
+            }
+
+            var response = new CreateTenantUserResponse
+            {
+                TenantUserId = externalUserId,
+                RequiresEmailVerification = false
             };
-            return ServiceResult<UserDto>.Ok(userDto, "User created successfully.");
+            return ServiceResult<CreateTenantUserResponse>.Ok(response, "User created successfully.");
         }
         public async Task<ServiceResult<UserDto>> GetUserByEmailAsync(string email)
         {

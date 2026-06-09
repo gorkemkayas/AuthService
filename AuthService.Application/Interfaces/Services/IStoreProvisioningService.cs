@@ -1,7 +1,10 @@
-﻿namespace AuthService.Application.Interfaces.Services
+﻿using AuthService.Application.Results;
+
+namespace AuthService.Application.Interfaces.Services
 {
     public interface IStoreProvisioningService
     {
-        Task ProvisionStoreAsync(int tenantId,string slug);
+        Task<ServiceResult> ProvisionStoreAsync(int tenantId, string slug);
+        Task<ServiceResult> ProvisionCustomerAsync(int tenantId, Guid externalUserId, string email, string firstName, string lastName);
     }
 }

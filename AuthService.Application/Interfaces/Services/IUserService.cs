@@ -8,7 +8,7 @@ namespace AuthService.Application.Interfaces.Services
 {
     public interface IUserService
     {
-        Task<ServiceResult<UserDto>> CreateTenantUserAsync(CreateTenantUserRequest request);
+        Task<ServiceResult<CreateTenantUserResponse>> CreateTenantUserAsync(CreateTenantUserRequest request);
         Task<ServiceResult<UserDto>> GetUserByEmailAsync(string email);
         Task<ServiceResult<UserDto>> GetUserByIdAsync(string id);
         Task<ServiceResult> DeleteUserAsync(string id);
