@@ -6,11 +6,17 @@ namespace AuthService.API.Extensions
     {
         public static WebApplicationBuilder AddCustomLogging(this WebApplicationBuilder builder)
         {
-            Log.Logger = new LoggerConfiguration()
-            .Enrich.FromLogContext()
-            .WriteTo.Console()
-            .WriteTo.Seq("http://localhost:5341")
-            .CreateLogger();
+            var loggerConfig = new LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .WriteTo.Console();
+
+            var seqUrl = builder.Configuration["Serilog:SeqUrl"];
+            if (!string.IsNullOrWhiteSpace(seqUrl))
+            {
+                loggerConfig = loggerConfig.WriteTo.Seq(seqUrl);
+            }
+
+            Log.Logger = loggerConfig.CreateLogger();
 
             builder.Host.UseSerilog();
 

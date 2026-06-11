@@ -66,6 +66,7 @@ namespace AuthService.Infrastructure.Services
 
         public string CreateAdminToken(string adminId, string email)
         {
+            var adminUser = _unitOfWork.Users.FindAsync(adminId).GetAwaiter().GetResult();
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, adminId),
@@ -78,13 +79,17 @@ namespace AuthService.Infrastructure.Services
                 new Claim(JwtRegisteredClaimNames.Aud, "system-ui")
             };
 
+            var enrichedClaims = claims.ToList();
+            AddNameClaims(enrichedClaims, adminUser?.Name, adminUser?.Surname, adminUser?.FullName);
+
             var creds = GetSigningCredentials(_secret);
-            var token = GetJwtSecurityToken(_issuer, Audiences.AuthService, claims, DateTime.UtcNow.AddMinutes(30), creds);
+            var token = GetJwtSecurityToken(_issuer, Audiences.AuthService, enrichedClaims, DateTime.UtcNow.AddMinutes(30), creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
         public string CreateTenantToken(string userId, string email, string tenantId, string tenantDomain)
         {
+            var user = _unitOfWork.Users.FindAsync(userId).GetAwaiter().GetResult();
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, userId),
@@ -94,8 +99,11 @@ namespace AuthService.Infrastructure.Services
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
+            var enrichedClaims = claims.ToList();
+            AddNameClaims(enrichedClaims, user?.Name, user?.Surname, user?.FullName);
+
             var creds = GetSigningCredentials(_secret);
-            var token = GetJwtSecurityToken(_issuer, Audiences.TenantApi, claims, DateTime.UtcNow.AddHours(1), creds);
+            var token = GetJwtSecurityToken(_issuer, Audiences.TenantApi, enrichedClaims, DateTime.UtcNow.AddHours(1), creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
@@ -154,12 +162,12 @@ namespace AuthService.Infrastructure.Services
                 new Claim("tenantId", tenantId.ToString()),
                 // new Claim("tenantDomain", tenantDomain), // Frontend routing için
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                // E-Commerce için ekstra:
-                new Claim("name", $"{user!.FullName}"), // Kullanıcı adı gösterimi için
                 new Claim(CustomClaimTypes.TokenType, CustomAudiences.Tenant),
                 new Claim(JwtRegisteredClaimNames.Aud, "tenant-ui")
 
             };
+
+            AddNameClaims(claims, user?.Name, user?.Surname, user?.FullName);
 
             // Rol bazlı claims ekle (admin, customer, seller, vb.)
             foreach (var role in userRoles)
@@ -220,11 +228,32 @@ namespace AuthService.Infrastructure.Services
 
         public async Task<ServiceResult<RefreshResponse>> RefreshAsync(string? refreshToken, AuditInfo clientInformations, string clientType, string? deviceId)
         {
-            if (string.IsNullOrEmpty(refreshToken)) return ServiceResult<RefreshResponse>.Fail("Refresh Token Required", ErrorCodes.ValidationError);
+            if (string.IsNullOrEmpty(refreshToken)) return ServiceResult<RefreshResponse>.Fail("Refresh token is required.", ErrorCodes.Unauthorized);
 
             var dbRefreshToken = await _unitOfWork.RefreshTokens.FindByTokenAsync(refreshToken, false);
 
-            if (dbRefreshToken == null) return ServiceResult<RefreshResponse>.Fail("Invalid refresh token.", ErrorCodes.Unauthorized);
+            if (dbRefreshToken == null)
+                return ServiceResult<RefreshResponse>.Fail("Invalid refresh token.", ErrorCodes.Unauthorized);
+
+            if (dbRefreshToken.IsRevoked)
+            {
+                if (!string.IsNullOrWhiteSpace(dbRefreshToken.ReplacedByToken))
+                {
+                    _logger.LogWarning(
+                        "Refresh token reuse detected. UserId={UserId}, Token={Token}",
+                        dbRefreshToken.UserId,
+                        dbRefreshToken.Token);
+
+                    await RevokeAllDevicesAsync(dbRefreshToken.UserId, clientInformations.IpAddress);
+                    await _unitOfWork.SaveChangesAsync();
+                    return ServiceResult<RefreshResponse>.Fail("Refresh token reuse detected.", ErrorCodes.Unauthorized);
+                }
+
+                return ServiceResult<RefreshResponse>.Fail("Refresh token has been revoked.", ErrorCodes.Unauthorized);
+            }
+
+            if (dbRefreshToken.Expires <= DateTime.UtcNow)
+                return ServiceResult<RefreshResponse>.Fail("Refresh token has expired.", ErrorCodes.Unauthorized);
 
             if (!ValidateRefreshToken(dbRefreshToken, clientType, deviceId))
             {
@@ -233,8 +262,7 @@ namespace AuthService.Infrastructure.Services
                     dbRefreshToken.UserId,
                     dbRefreshToken.ClientType,
                     clientType,
-                    deviceId
-                );
+                    deviceId);
 
                 if (clientType == ClientTypes.Web)
                 {
@@ -244,12 +272,10 @@ namespace AuthService.Infrastructure.Services
                 {
                     await RevokeDeviceRefreshTokensAsync(dbRefreshToken.UserId, clientType, deviceId!, clientInformations);
                 }
-                await _unitOfWork.SaveChangesAsync(); // yapılan revoke'ları kaydediyorum.
 
-                // refreshTokenların hepsini yada cihaza bağlı olan tokenları revoke et.
-                return ServiceResult<RefreshResponse>.Fail("Suspicious login detected!", ErrorCodes.Unauthorized);
+                await _unitOfWork.SaveChangesAsync();
+                return ServiceResult<RefreshResponse>.Fail("Invalid refresh token.", ErrorCodes.Unauthorized);
             }
-            if (dbRefreshToken.Expires < DateTime.UtcNow) return ServiceResult<RefreshResponse>.Fail("Refresh Token expired. Please try login", ErrorCodes.Unauthorized);
 
             var ownerOfRefreshToken = await _unitOfWork.Users.FindAsync(dbRefreshToken.UserId);
 
@@ -271,7 +297,7 @@ namespace AuthService.Infrastructure.Services
 
             await _unitOfWork.SaveChangesAsync();
 
-            return ServiceResult<RefreshResponse>.Ok(new RefreshResponse() { RefreshToken = newRefreshToken, AccessToken = newAccessToken });
+            return ServiceResult<RefreshResponse>.Ok(new RefreshResponse() { RefreshToken = newRefreshToken, Token = newAccessToken });
 
 
         }
@@ -289,6 +315,18 @@ namespace AuthService.Infrastructure.Services
             // Mobile / Desktop
             return !string.IsNullOrEmpty(token.DeviceId)
                 && token.DeviceId == deviceId;
+        }
+
+        private static void AddNameClaims(ICollection<Claim> claims, string? givenName, string? familyName, string? name)
+        {
+            if (!string.IsNullOrWhiteSpace(givenName))
+                claims.Add(new Claim(JwtRegisteredClaimNames.GivenName, givenName));
+
+            if (!string.IsNullOrWhiteSpace(familyName))
+                claims.Add(new Claim(JwtRegisteredClaimNames.FamilyName, familyName));
+
+            if (!string.IsNullOrWhiteSpace(name))
+                claims.Add(new Claim("name", name));
         }
 
         private async Task<string?> RotateRefreshTokenByRefreshTokenAsync(Domain.Entities.RefreshToken refreshToken, AuditInfo clientInformations, string clientType, string? deviceId)

@@ -20,7 +20,7 @@ namespace AuthService.API.Extensions
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = "https://auth.kayas.dev",
+                    ValidIssuer = configuration["Jwt:Issuer"],
                     ValidateAudience = true,
                     ValidAudiences = new[] {Audiences.AuthService, Audiences.TenantApi},
                     ValidateLifetime = true,

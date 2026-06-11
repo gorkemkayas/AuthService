@@ -1,17 +1,38 @@
-﻿using AuthService.Application.Dtos.Tenant;
+﻿using AuthService.Application.Dtos.Integration;
+using AuthService.Application.Common;
+using AuthService.Application.Dtos.Tenant;
+using AuthService.Application.Dtos.User;
 using AuthService.Application.Interfaces;
 using AuthService.Application.Interfaces.Services;
 using AuthService.Application.Results;
+using AuthService.Domain.Entities;
 using AuthService.Infrastructure.Common;
+using AuthService.Infrastructure.Persistance.DbContexts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AuthService.Infrastructure.Services;
 
 public class TenantService : ITenantService
 {
     private readonly IUnitOfWork _unitOfWork;
-    public TenantService(IUnitOfWork unitOfWork)
+    private readonly AuthDbContext _dbContext;
+    private readonly IUserService _userService;
+    private readonly IStoreProvisioningService _storeProvisioningService;
+    private readonly ILogger<TenantService> _logger;
+
+    public TenantService(
+        IUnitOfWork unitOfWork,
+        AuthDbContext dbContext,
+        IUserService userService,
+        IStoreProvisioningService storeProvisioningService,
+        ILogger<TenantService> logger)
     {
         _unitOfWork = unitOfWork;
+        _dbContext = dbContext;
+        _userService = userService;
+        _storeProvisioningService = storeProvisioningService;
+        _logger = logger;
     }
     public async Task<ServiceResult<TenantDto>> GetTenantByIdAsync(int tenantId)
     {
@@ -45,24 +66,26 @@ public class TenantService : ITenantService
     }
     public async Task<ServiceResult<TenantDto>> CreateNewTenantAsync(CreateTenantDto createTenantDto)
     {
-        var existingTenant = await _unitOfWork.Tenants.GetByNameAsync(createTenantDto.Name);
+        var tenantName = createTenantDto.Name.Trim();
+        var existingTenant = await _unitOfWork.Tenants.GetByNameAsync(tenantName);
         if (existingTenant is not null)
             return ServiceResult<TenantDto>.Fail("Tenant with the same name already exists.");
 
         var existingDomains = _unitOfWork.Tenants.GetAllDomainAddresses();
-        var newTenant = new Domain.Entities.Tenant
+        var newTenant = new Tenant
         {
-            Name = createTenantDto.Name,
+            Name = tenantName,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            Email = GenerateTenantEmailFromName(createTenantDto.Name), // Domain yerine Name kullan
+            Email = GenerateTenantEmailFromName(tenantName), // Domain yerine Name kullan
         };
         await _unitOfWork.Tenants.AddAsync(newTenant);
         await _unitOfWork.SaveChangesAsync();
+        var persistedTenant = await _unitOfWork.Tenants.GetByNameAsync(newTenant.Name);
         var tenantDto = new TenantDto
         {
-            Id = (await _unitOfWork.Tenants.GetByNameAsync(newTenant.Name))!.Id,
+            Id = persistedTenant!.Id,
             Name = newTenant.Name,
             IsActive = newTenant.IsActive,
             CreatedAt = newTenant.CreatedAt,
@@ -70,6 +93,105 @@ public class TenantService : ITenantService
         };
         return ServiceResult<TenantDto>.Ok(tenantDto, "Tenant created successfully.");
     }
+
+    public async Task<ServiceResult<TenantRegistrationResponse>> RegisterTenantAsync(RegisterTenantRequest request)
+    {
+        var normalizedPlanCode = NormalizePlanCode(request.PlanCode);
+        if (!IsSupportedPlanCode(normalizedPlanCode))
+            return ServiceResult<TenantRegistrationResponse>.Fail("PlanCode must be one of: starter, growth, premium.", ErrorCodes.ValidationError);
+
+        var existingTenant = await _unitOfWork.Tenants.GetByNameAsync(request.Name);
+        if (existingTenant is not null)
+            return ServiceResult<TenantRegistrationResponse>.Fail("Tenant with the same name already exists.", ErrorCodes.AlreadyExists);
+
+        var tenantName = request.Name.Trim();
+        var tenant = new Tenant
+        {
+            Name = tenantName,
+            IsActive = true,
+            IsSystem = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Email = GenerateTenantEmailFromName(tenantName),
+            HashedPassword = "0000000000"
+        };
+
+        await _unitOfWork.Tenants.AddAsync(tenant);
+        await _unitOfWork.SaveChangesAsync();
+
+        var persistedTenant = await _unitOfWork.Tenants.GetByNameAsync(tenantName);
+        if (persistedTenant is null)
+        {
+            return ServiceResult<TenantRegistrationResponse>.Fail("Tenant creation failed.", ErrorCodes.Unexpected);
+        }
+
+        var ownerResult = await _userService.CreateTenantUserAsync(new CreateTenantUserRequest
+        {
+            Name = request.Owner.Name.Trim(),
+            Surname = request.Owner.Surname.Trim(),
+            Email = request.Owner.Email.Trim(),
+            Password = request.Owner.Password,
+            TenantId = persistedTenant.Id
+        });
+
+        if (!ownerResult.Success)
+        {
+            await MarkTenantRegistrationFailedAsync(persistedTenant.Id);
+            return ServiceResult<TenantRegistrationResponse>.Fail(ownerResult.Message ?? "Failed to create tenant owner.", ownerResult.ErrorCode ?? ErrorCodes.Unexpected);
+        }
+
+        var roleResult = await _userService.AssignRolesToUserAsync(
+            ownerResult.Data!.TenantUserId.ToString(),
+            persistedTenant.Id,
+            new List<string> { "TenantAdmin" });
+
+        if (!roleResult.Success)
+        {
+            await MarkTenantRegistrationFailedAsync(persistedTenant.Id);
+            return ServiceResult<TenantRegistrationResponse>.Fail(
+                roleResult.Message ?? "Failed to assign TenantAdmin role to tenant owner.",
+                roleResult.ErrorCode ?? ErrorCodes.Unexpected);
+        }
+
+        var provisioningResult = await _storeProvisioningService.ProvisionStoreAsync(persistedTenant.Id, persistedTenant.Name, normalizedPlanCode);
+        string? storeId = null;
+        string? storeSlug = null;
+
+        if (provisioningResult.Success)
+        {
+            storeId = provisioningResult.Data?.StoreId;
+            storeSlug = provisioningResult.Data?.StoreSlug;
+        }
+        else
+        {
+            _logger.LogError("Store provisioning failed for tenant {TenantId}: {Message}", persistedTenant.Id, provisioningResult.Message);
+        }
+
+        var response = new TenantRegistrationResponse
+        {
+            TenantId = persistedTenant.Id,
+            StoreId = storeId,
+            StoreSlug = storeSlug,
+            RequiresEmailVerification = false,
+            Message = "Store owner registration completed."
+        };
+
+        return ServiceResult<TenantRegistrationResponse>.Ok(response, response.Message);
+    }
+
+    private async Task MarkTenantRegistrationFailedAsync(int tenantId)
+    {
+        var tenant = await _dbContext.Tenants.FirstOrDefaultAsync(item => item.Id == tenantId);
+        if (tenant is null)
+            return;
+
+        tenant.IsActive = false;
+        tenant.IsDeleted = true;
+        tenant.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync();
+    }
+
     public async Task<ServiceResult> DeleteTenantAsync(int tenantId)
     {
         var tenant = await _unitOfWork.Tenants.GetByIdAsync(tenantId);
@@ -290,6 +412,19 @@ public class TenantService : ITenantService
             throw new ArgumentException("Tenant name must contain at least one alphanumeric character", nameof(tenantName));
 
         return $"{emailPrefix}@kayas.dev";
+    }
+
+    private static string NormalizePlanCode(string? planCode)
+    {
+        if (string.IsNullOrWhiteSpace(planCode))
+            return "starter";
+
+        return planCode.Trim().ToLowerInvariant();
+    }
+
+    private static bool IsSupportedPlanCode(string planCode)
+    {
+        return planCode is "starter" or "growth" or "premium";
     }
 
 }

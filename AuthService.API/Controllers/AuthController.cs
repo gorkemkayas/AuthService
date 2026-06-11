@@ -52,18 +52,7 @@ namespace AuthService.API.Controllers
             if (!tokenResult.Success)
                 return FromServiceResult(tokenResult);
 
-            if (_clientContext.ClientType == ClientTypes.Web)
-            {
-                SetRefreshTokenCookie(tokenResult.Data!.RefreshToken!);
-                var tenantResponse = new CreateTenantUserTokenResponse()
-                {
-                    Token = tokenResult.Data!.Token,
-                };
-                return Ok(ApiResult<CreateTenantUserTokenResponse>.Ok(tenantResponse, tokenResult.Message));
-            }
-
-
-            return FromServiceResult(tokenResult);
+            return Ok(tokenResult.Data);
 
         }
 
@@ -75,6 +64,7 @@ namespace AuthService.API.Controllers
         }
 
         [HttpPost("refresh")]
+        [AllowAnonymous]
         public async Task<IActionResult> Refresh([FromBody] RefreshRequest? refreshRequest)
         {
             var userInformations = GetClientInformations();
@@ -83,6 +73,8 @@ namespace AuthService.API.Controllers
             if (_clientContext.ClientType == ClientTypes.Web)
             {
                 refreshToken = Request.Cookies["refreshToken"];
+                if (string.IsNullOrWhiteSpace(refreshToken))
+                    refreshToken = refreshRequest?.RefreshToken;
             }
             else
             {
@@ -90,19 +82,17 @@ namespace AuthService.API.Controllers
             }
 
             var tokenResult = await _tokenService.RefreshAsync(refreshToken, userInformations,_clientContext.ClientType, _clientContext.DeviceId);
-            if (!tokenResult.Success) return FromServiceResult(tokenResult);
-
-            if (_clientContext.ClientType == ClientTypes.Web)
+            if (!tokenResult.Success)
             {
-                SetRefreshTokenCookie(tokenResult.Data!.RefreshToken!);
-                var tenantResponse = new CreateTenantUserTokenResponse()
+                return Unauthorized(new
                 {
-                    Token = tokenResult.Data!.AccessToken!,
-                };
-                return Ok(ApiResult<CreateTenantUserTokenResponse>.Ok(tenantResponse, tokenResult.Message));
+                    message = tokenResult.Message,
+                    detail = tokenResult.Message,
+                    errorCode = tokenResult.ErrorCode
+                });
             }
 
-            return FromServiceResult(tokenResult);
+            return Ok(tokenResult.Data);
         }
 
         [Authorize]
